@@ -61,10 +61,8 @@ public class MainActivity extends Activity {
         showLogin();
     }
 
-
     private void showLogin() {
         LinearLayout root = page();
-
         TextView logo = text("VIYZO GO", 34);
         logo.setGravity(Gravity.CENTER);
         logo.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -115,7 +113,6 @@ public class MainActivity extends Activity {
 
     private void showSignup() {
         LinearLayout root = page();
-
         TextView title = text("CREATE VIYZO ACCOUNT", 26);
         title.setGravity(Gravity.CENTER);
         root.addView(title);
@@ -312,14 +309,103 @@ public class MainActivity extends Activity {
     }
 
     private void showSettings() {
-        LinearLayout r=page(); r.addView(text("⚙️ SETTINGS & PRIVACY",26));
-        r.addView(button("🔐 ACCOUNT & PASSWORD")); r.addView(button("🔒 PRIVACY"));
-        r.addView(button("🛡️ SECURITY")); r.addView(button("🔔 NOTIFICATION SETTINGS"));
-        r.addView(button("💬 MESSAGE SETTINGS")); r.addView(button("👥 FOLLOWERS & FOLLOWING"));
-        r.addView(button("🚫 BLOCKING")); r.addView(button("🎬 CONTENT PREFERENCES"));
-        r.addView(button("🌐 LANGUAGE")); r.addView(button("📱 DATA USAGE"));
-        r.addView(button("❓ HELP & SUPPORT")); r.addView(button("📄 TERMS & POLICIES"));
-        r.addView(button("⚠️ DELETE ACCOUNT")); addBack(r);
+        LinearLayout r = page();
+        r.addView(text("⚙️ SETTINGS & PRIVACY",26));
+
+        Button account = button("🔐 ACCOUNT & PASSWORD");
+        account.setOnClickListener(v -> showSettingInfo("ACCOUNT & PASSWORD",
+                "Change password\nChange email\nEdit account name\nLogin activity"));
+        r.addView(account);
+
+        Button privacy = button("🔒 PRIVACY");
+        privacy.setOnClickListener(v -> showSettingInfo("PRIVACY",
+                "Profile privacy\nWho can message you\nPrivate account\nActivity visibility"));
+        r.addView(privacy);
+
+        Button security = button("🛡️ SECURITY");
+        security.setOnClickListener(v -> showSettingInfo("SECURITY",
+                "Login alerts\nTwo-step verification\nActive sessions\nSecurity checkup"));
+        r.addView(security);
+
+        Button notifications = button("🔔 NOTIFICATION SETTINGS");
+        notifications.setOnClickListener(v -> showSettingInfo("NOTIFICATION SETTINGS",
+                "Likes\nComments\nFollowers\nMessages\nCreator notifications"));
+        r.addView(notifications);
+
+        Button messages = button("💬 MESSAGE SETTINGS");
+        messages.setOnClickListener(v -> showSettingInfo("MESSAGE SETTINGS",
+                "Message requests\nWho can message you\nRead receipts\nBlocked messages"));
+        r.addView(messages);
+
+        Button followers = button("👥 FOLLOWERS & FOLLOWING");
+        followers.setOnClickListener(v -> showSettingInfo("FOLLOWERS & FOLLOWING",
+                "Manage followers\nFollowing list\nFriend requests\nRemove follower"));
+        r.addView(followers);
+
+        Button blocking = button("🚫 BLOCKING");
+        blocking.setOnClickListener(v -> showSettingInfo("BLOCKING",
+                "Blocked users\nBlocked messages\nBlocked videos"));
+        r.addView(blocking);
+
+        Button content = button("🎬 CONTENT PREFERENCES");
+        content.setOnClickListener(v -> showSettingInfo("CONTENT PREFERENCES",
+                "Recommendations\nSensitive content\nTopics\nNot interested"));
+        r.addView(content);
+
+        Button language = button("🌐 LANGUAGE");
+        language.setOnClickListener(v -> showLanguageDialog());
+        r.addView(language);
+
+        Button data = button("📱 DATA USAGE");
+        data.setOnClickListener(v -> showSettingInfo("DATA USAGE",
+                "Data saver\nVideo quality\nAutoplay\nWi-Fi only"));
+        r.addView(data);
+
+        Button help = button("❓ HELP & SUPPORT");
+        help.setOnClickListener(v -> showSettingInfo("HELP & SUPPORT",
+                "Help Center\nReport a problem\nContact support\nAccount help"));
+        r.addView(help);
+
+        Button terms = button("📄 TERMS & POLICIES");
+        terms.setOnClickListener(v -> showSettingInfo("TERMS & POLICIES",
+                "Terms\nPrivacy Policy\nCommunity Guidelines\nCreator Policy"));
+        r.addView(terms);
+
+        Button delete = button("⚠️ DELETE ACCOUNT");
+        delete.setOnClickListener(v -> showDeleteAccountDialog());
+        r.addView(delete);
+
+        addBack(r);
+    }
+
+    private void showSettingInfo(String title, String message) {
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(message)
+                .setPositiveButton("OK", null)
+                .show();
+    }
+
+    private void showLanguageDialog() {
+        String[] languages = {"English", "Hindi", "বাংলা", "Urdu"};
+        new AlertDialog.Builder(this)
+                .setTitle("🌐 LANGUAGE")
+                .setSingleChoiceItems(languages, 0, (dialog, which) -> {
+                    Toast.makeText(this, "Language selected: " + languages[which], Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                })
+                .setNegativeButton("CANCEL", null)
+                .show();
+    }
+
+    private void showDeleteAccountDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("⚠️ DELETE ACCOUNT")
+                .setMessage("This is a test screen. Real account deletion will be connected later.")
+                .setPositiveButton("DELETE TEST", (d, w) ->
+                        Toast.makeText(this, "Delete account - TEST", Toast.LENGTH_SHORT).show())
+                .setNegativeButton("CANCEL", null)
+                .show();
     }
 
     private void showReport() {
