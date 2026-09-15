@@ -19,976 +19,235 @@ import android.widget.VideoView;
 import android.widget.MediaController;
 
 public class MainActivity extends Activity {
-
     private VideoView videoView;
-    private TextView likeText;
-
     private int likeCount = 0;
     private boolean liked = false;
 
-    private int dp(int value) {
-        return (int) (
-                value * getResources()
-                        .getDisplayMetrics()
-                        .density + 0.5f
-        );
+    private int dp(int v) {
+        return (int)(v * getResources().getDisplayMetrics().density + 0.5f);
     }
 
-    private TextView makeText(String text, int size) {
-
-        TextView textView = new TextView(this);
-
-        textView.setText(text);
-        textView.setTextColor(Color.WHITE);
-        textView.setTextSize(size);
-        textView.setTypeface(
-                Typeface.DEFAULT,
-                Typeface.BOLD
-        );
-
-        textView.setPadding(
-                dp(12),
-                dp(12),
-                dp(12),
-                dp(12)
-        );
-
-        return textView;
+    private TextView text(String s, int size) {
+        TextView t = new TextView(this);
+        t.setText(s);
+        t.setTextColor(Color.WHITE);
+        t.setTextSize(size);
+        t.setGravity(Gravity.CENTER_VERTICAL);
+        t.setPadding(dp(8), dp(6), dp(8), dp(6));
+        return t;
     }
 
-    private Button makeButton(String text) {
-
-        Button button = new Button(this);
-
-        button.setText(text);
-        button.setTextSize(14);
-        button.setAllCaps(false);
-
-        return button;
+    private Button button(String s) {
+        Button b = new Button(this);
+        b.setText(s);
+        b.setTextSize(14);
+        b.setAllCaps(false);
+        return b;
     }
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    private LinearLayout page() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(10), dp(10), dp(10), dp(12));
+        root.setBackgroundColor(Color.rgb(18,18,22));
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(root);
+        setContentView(scroll);
+        return root;
+    }
 
-        super.onCreate(savedInstanceState);
-
+    @Override protected void onCreate(Bundle state) {
+        super.onCreate(state);
         showHome();
     }
 
-    private LinearLayout createPage() {
+    private void showHome() {
+        LinearLayout root = page();
+        TextView logo = text("VIYZO GO",30);
+        logo.setGravity(Gravity.CENTER);
+        logo.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+        root.addView(logo);
 
-        LinearLayout content =
-                new LinearLayout(this);
+        TextView sub = text("VIDEO • FRIENDS • MESSAGES • CREATOR",13);
+        sub.setGravity(Gravity.CENTER);
+        root.addView(sub);
 
-        content.setOrientation(
-                LinearLayout.VERTICAL
-        );
+        videoView = new VideoView(this);
+        LinearLayout.LayoutParams vp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(230));
+        vp.setMargins(0,dp(8),0,dp(8));
+        root.addView(videoView,vp);
 
-        content.setPadding(
-                dp(12),
-                dp(12),
-                dp(12),
-                dp(20)
-        );
+        Button select = button("🎬 SELECT / UPLOAD VIDEO");
+        select.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("video/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(intent,100);
+        });
+        root.addView(select);
 
-        content.setBackgroundColor(
-                Color.rgb(18, 18, 22)
-        );
+        LinearLayout r1 = row();
+        Button like = button("❤️ LIKE 0");
+        like.setOnClickListener(v -> {
+            liked = !liked;
+            if(liked) likeCount++; else if(likeCount>0) likeCount--;
+            like.setText((liked ? "❤️ LIKED " : "❤️ LIKE ") + likeCount);
+        });
+        Button comment = button("💬 COMMENT");
+        comment.setOnClickListener(v -> showComments());
+        addRow(r1,like,comment); root.addView(r1);
 
-        ScrollView scrollView =
-                new ScrollView(this);
+        LinearLayout r2 = row();
+        Button share = button("🔗 SHARE"); share.setOnClickListener(v -> shareVideo());
+        Button msg = button("💬 MESSAGE"); msg.setOnClickListener(v -> showMessages());
+        addRow(r2,share,msg); root.addView(r2);
 
-        scrollView.addView(content);
+        LinearLayout r3 = row();
+        Button profile = button("👤 PROFILE"); profile.setOnClickListener(v -> showProfile());
+        Button friends = button("👥 FRIENDS"); friends.setOnClickListener(v -> showFriends());
+        addRow(r3,profile,friends); root.addView(r3);
 
-        setContentView(scrollView);
+        LinearLayout r4 = row();
+        Button notif = button("🔔 NOTIFICATIONS"); notif.setOnClickListener(v -> showNotifications());
+        Button search = button("🔎 SEARCH"); search.setOnClickListener(v -> showSearch());
+        addRow(r4,notif,search); root.addView(r4);
 
-        return content;
+        LinearLayout r5 = row();
+        Button dash = button("📊 MY DASHBOARD"); dash.setOnClickListener(v -> showMyDashboard());
+        Button settings = button("⚙️ SETTINGS"); settings.setOnClickListener(v -> showSettings());
+        addRow(r5,dash,settings); root.addView(r5);
+
+        LinearLayout r6 = row();
+        Button report = button("🚨 REPORT / BLOCK"); report.setOnClickListener(v -> showReport());
+        Button admin = button("🛠️ ADMIN"); admin.setOnClickListener(v -> showAdminDashboard());
+        addRow(r6,report,admin); root.addView(r6);
+
+        Button logout = button("🚪 LOGOUT");
+        logout.setOnClickListener(v -> Toast.makeText(this,"Logout test",Toast.LENGTH_SHORT).show());
+        root.addView(logout);
     }
 
-    private void showHome() {
-
-        LinearLayout layout =
-                createPage();
-
-        TextView logo =
-                makeText("VIYZO GO", 30);
-
-        logo.setGravity(Gravity.CENTER);
-
-        layout.addView(logo);
-
-        TextView subtitle =
-                new TextView(this);
-
-        subtitle.setText(
-                "Social Video • Friends • Messages • Creator"
-        );
-
-        subtitle.setTextColor(Color.LTGRAY);
-        subtitle.setTextSize(14);
-        subtitle.setGravity(Gravity.CENTER);
-
-        layout.addView(subtitle);
-
-        videoView =
-                new VideoView(this);
-
-        LinearLayout.LayoutParams videoParams =
-                new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(300)
-                );
-
-        videoParams.setMargins(
-                0,
-                dp(15),
-                0,
-                dp(15)
-        );
-
-        layout.addView(
-                videoView,
-                videoParams
-        );
-
-        Button selectVideo =
-                makeButton(
-                        "SELECT / UPLOAD VIDEO"
-                );
-
-        selectVideo.setOnClickListener(v -> {
-
-            Intent intent =
-                    new Intent(
-                            Intent.ACTION_OPEN_DOCUMENT
-                    );
-
-            intent.setType("video/*");
-
-            intent.addCategory(
-                    Intent.CATEGORY_OPENABLE
-            );
-
-            intent.addFlags(
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-            );
-
-            intent.addFlags(
-                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-            );
-
-            startActivityForResult(
-                    intent,
-                    100
-            );
-        });
-
-        layout.addView(selectVideo);
-
-        likeText =
-                makeText(
-                        "LIKE 0",
-                        18
-                );
-
-        likeText.setOnClickListener(v -> {
-
-            if (!liked) {
-
-                liked = true;
-                likeCount++;
-
-                likeText.setText(
-                        "LIKED  " + likeCount
-                );
-
-            } else {
-
-                liked = false;
-
-                if (likeCount > 0) {
-                    likeCount--;
-                }
-
-                likeText.setText(
-                        "LIKE  " + likeCount
-                );
-            }
-        });
-
-        layout.addView(likeText);
-
-        Button comment =
-                makeButton("COMMENTS");
-
-        comment.setOnClickListener(
-                v -> showComments()
-        );
-
-        layout.addView(comment);
-
-        Button share =
-                makeButton("SHARE VIDEO");
-
-        share.setOnClickListener(
-                v -> shareVideo()
-        );
-
-        layout.addView(share);
-
-        Button messages =
-                makeButton("MESSAGES");
-
-        messages.setOnClickListener(
-                v -> showMessages()
-        );
-
-        layout.addView(messages);
-
-        Button notifications =
-                makeButton("NOTIFICATIONS");
-
-        notifications.setOnClickListener(
-                v -> showNotifications()
-        );
-
-        layout.addView(notifications);
-
-        Button profile =
-                makeButton("MY PROFILE");
-
-        profile.setOnClickListener(
-                v -> showProfile()
-        );
-
-        layout.addView(profile);
-
-        Button dashboard =
-                makeButton("MY DASHBOARD");
-
-        dashboard.setOnClickListener(
-                v -> showMyDashboard()
-        );
-
-        layout.addView(dashboard);
-
-        Button friends =
-                makeButton("FRIENDS / FOLLOWERS");
-
-        friends.setOnClickListener(
-                v -> showFriends()
-        );
-
-        layout.addView(friends);
-
-        Button search =
-                makeButton("SEARCH USERS");
-
-        search.setOnClickListener(
-                v -> showSearch()
-        );
-
-        layout.addView(search);
-
-        Button report =
-                makeButton("REPORT / BLOCK");
-
-        report.setOnClickListener(
-                v -> showReport()
-        );
-
-        layout.addView(report);
-
-        Button settings =
-                makeButton(
-                        "SETTINGS & PRIVACY"
-                );
-
-        settings.setOnClickListener(
-                v -> showSettings()
-        );
-
-        layout.addView(settings);
-
-        Button admin =
-                makeButton(
-                        "ADMIN DASHBOARD"
-                );
-
-        admin.setOnClickListener(
-                v -> showAdminDashboard()
-        );
-
-        layout.addView(admin);
-
-        Button logout =
-                makeButton("LOGOUT");
-
-        logout.setOnClickListener(v -> {
-
-            Toast.makeText(
-                    this,
-                    "Logout test",
-                    Toast.LENGTH_SHORT
-            ).show();
-        });
-
-        layout.addView(logout);
+    private LinearLayout row() {
+        LinearLayout r = new LinearLayout(this);
+        r.setOrientation(LinearLayout.HORIZONTAL);
+        return r;
+    }
+
+    private void addRow(LinearLayout r, Button a, Button b) {
+        r.addView(a,new LinearLayout.LayoutParams(0,dp(55),1));
+        r.addView(b,new LinearLayout.LayoutParams(0,dp(55),1));
     }
 
     private void showComments() {
-
-        EditText input =
-                new EditText(this);
-
-        input.setHint(
-                "Write a comment"
-        );
-
+        EditText input = new EditText(this);
+        input.setHint("Write a comment");
         new AlertDialog.Builder(this)
-                .setTitle("COMMENTS")
-                .setMessage(
-                        "Comments\n\n" +
-                        "Like comment\n" +
-                        "Reply\n" +
-                        "Delete comment\n" +
-                        "Report comment"
-                )
+                .setTitle("💬 COMMENTS")
+                .setMessage("Comment • Reply • Like • Delete • Report")
                 .setView(input)
-                .setPositiveButton(
-                        "POST",
-                        (dialog, which) -> {
-
-                            Toast.makeText(
-                                    this,
-                                    "Comment posted - TEST",
-                                    Toast.LENGTH_SHORT
-                            ).show();
-                        }
-                )
-                .setNegativeButton(
-                        "CANCEL",
-                        null
-                )
-                .show();
+                .setPositiveButton("POST",(d,w)->Toast.makeText(this,"Comment posted - TEST",Toast.LENGTH_SHORT).show())
+                .setNegativeButton("CANCEL",null).show();
     }
 
     private void shareVideo() {
-
-        Intent shareIntent =
-                new Intent(
-                        Intent.ACTION_SEND
-                );
-
-        shareIntent.setType(
-                "text/plain"
-        );
-
-        shareIntent.putExtra(
-                Intent.EXTRA_TEXT,
-                "Watch this video on Viyzo Go"
-        );
-
-        startActivity(
-                Intent.createChooser(
-                        shareIntent,
-                        "Share Viyzo Video"
-                )
-        );
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.setType("text/plain");
+        share.putExtra(Intent.EXTRA_TEXT,"Watch this video on Viyzo Go");
+        startActivity(Intent.createChooser(share,"Share Viyzo Video"));
     }
 
     private void showMessages() {
-
-        LinearLayout layout =
-                createPage();
-
-        layout.addView(
-                makeText(
-                        "MESSAGES",
-                        28
-                )
-        );
-
-        Button newMessage =
-                makeButton(
-                        "NEW MESSAGE"
-                );
-
-        layout.addView(newMessage);
-
-        Button user1 =
-                makeButton("USER 1");
-
-        layout.addView(user1);
-
-        Button user2 =
-                makeButton("USER 2");
-
-        layout.addView(user2);
-
-        Button requests =
-                makeButton(
-                        "MESSAGE REQUESTS"
-                );
-
-        layout.addView(requests);
-
-        addBackButton(layout);
+        LinearLayout r=page(); r.addView(text("💬 MESSAGES",28));
+        r.addView(button("➕ NEW MESSAGE")); r.addView(button("USER 1"));
+        r.addView(button("USER 2")); r.addView(button("📩 MESSAGE REQUESTS")); addBack(r);
     }
 
     private void showNotifications() {
-
-        LinearLayout layout =
-                createPage();
-
-        layout.addView(
-                makeText(
-                        "NOTIFICATIONS",
-                        28
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Someone liked your video",
-                        17
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Someone followed you",
-                        17
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "New comment received",
-                        17
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "New message received",
-                        17
-                )
-        );
-
-        addBackButton(layout);
+        LinearLayout r=page(); r.addView(text("🔔 NOTIFICATIONS",28));
+        r.addView(text("❤️ Someone liked your video",17));
+        r.addView(text("👤 Someone followed you",17));
+        r.addView(text("💬 New comment received",17));
+        r.addView(text("💬 New message received",17)); addBack(r);
     }
 
     private void showProfile() {
-
-        LinearLayout layout =
-                createPage();
-
-        layout.addView(
-                makeText(
-                        "MY PROFILE",
-                        28
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Name: Viyzo User",
-                        18
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Followers: 0",
-                        18
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Following: 0",
-                        18
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Likes Received: " + likeCount,
-                        18
-                )
-        );
-
-        Button edit =
-                makeButton(
-                        "EDIT PROFILE"
-                );
-
-        layout.addView(edit);
-
-        Button videos =
-                makeButton(
-                        "MY VIDEOS"
-                );
-
-        layout.addView(videos);
-
-        addBackButton(layout);
-    }
-
-    private void showMyDashboard() {
-
-        LinearLayout layout =
-                createPage();
-
-        layout.addView(
-                makeText(
-                        "MY DASHBOARD",
-                        28
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Video Views: 0",
-                        18
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Total Likes: " + likeCount,
-                        18
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Comments: 0",
-                        18
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Shares: 0",
-                        18
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Followers: 0",
-                        18
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Following: 0",
-                        18
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Creator Earnings: ₹0",
-                        18
-                )
-        );
-
-        Button analytics =
-                makeButton(
-                        "ANALYTICS"
-                );
-
-        layout.addView(analytics);
-
-        addBackButton(layout);
+        LinearLayout r=page(); r.addView(text("👤 MY PROFILE",28));
+        r.addView(text("Name: Viyzo User",18)); r.addView(text("Followers: 0",18));
+        r.addView(text("Following: 0",18)); r.addView(text("Likes Received: "+likeCount,18));
+        r.addView(button("✏️ EDIT PROFILE")); r.addView(button("🎬 MY VIDEOS")); addBack(r);
     }
 
     private void showFriends() {
-
-        LinearLayout layout =
-                createPage();
-
-        layout.addView(
-                makeText(
-                        "FRIENDS / FOLLOWERS",
-                        26
-                )
-        );
-
-        layout.addView(
-                makeButton("FRIENDS")
-        );
-
-        layout.addView(
-                makeButton("FOLLOWERS")
-        );
-
-        layout.addView(
-                makeButton("FOLLOWING")
-        );
-
-        layout.addView(
-                makeButton("FRIEND REQUESTS")
-        );
-
-        layout.addView(
-                makeButton("BLOCKED USERS")
-        );
-
-        addBackButton(layout);
+        LinearLayout r=page(); r.addView(text("👥 FRIENDS / FOLLOWERS",26));
+        r.addView(button("👥 FRIENDS")); r.addView(button("👤 FOLLOWERS"));
+        r.addView(button("➡️ FOLLOWING")); r.addView(button("📩 FRIEND REQUESTS"));
+        r.addView(button("🚫 BLOCKED USERS")); addBack(r);
     }
 
     private void showSearch() {
-
-        LinearLayout layout =
-                createPage();
-
-        layout.addView(
-                makeText(
-                        "SEARCH USERS",
-                        26
-                )
-        );
-
-        EditText searchBox =
-                new EditText(this);
-
-        searchBox.setHint(
-                "Search name or username"
-        );
-
-        searchBox.setTextColor(
-                Color.WHITE
-        );
-
-        searchBox.setHintTextColor(
-                Color.GRAY
-        );
-
-        layout.addView(searchBox);
-
-        Button searchButton =
-                makeButton("SEARCH");
-
-        layout.addView(searchButton);
-
-        searchButton.setOnClickListener(
-                v -> Toast.makeText(
-                        this,
-                        "Search test",
-                        Toast.LENGTH_SHORT
-                ).show()
-        );
-
-        addBackButton(layout);
+        LinearLayout r=page(); r.addView(text("🔎 SEARCH USERS",26));
+        EditText s=new EditText(this); s.setHint("Search name or username");
+        s.setTextColor(Color.WHITE); s.setHintTextColor(Color.GRAY); r.addView(s);
+        Button b=button("🔎 SEARCH"); b.setOnClickListener(v->Toast.makeText(this,"Search test",Toast.LENGTH_SHORT).show());
+        r.addView(b); addBack(r);
     }
 
-    private void showReport() {
-
-        String[] options = {
-                "Report User",
-                "Report Video",
-                "Spam",
-                "Harassment",
-                "Copyright",
-                "Block User"
-        };
-
-        new AlertDialog.Builder(this)
-                .setTitle(
-                        "REPORT / BLOCK"
-                )
-                .setItems(
-                        options,
-                        (dialog, which) -> {
-
-                            Toast.makeText(
-                                    this,
-                                    options[which],
-                                    Toast.LENGTH_SHORT
-                            ).show();
-                        }
-                )
-                .setNegativeButton(
-                        "CANCEL",
-                        null
-                )
-                .show();
+    private void showMyDashboard() {
+        LinearLayout r=page(); r.addView(text("📊 MY DASHBOARD",28));
+        r.addView(text("Video Views: 0",18)); r.addView(text("Total Likes: "+likeCount,18));
+        r.addView(text("Comments: 0",18)); r.addView(text("Shares: 0",18));
+        r.addView(text("Followers: 0",18)); r.addView(text("Following: 0",18));
+        r.addView(text("Creator Earnings: ₹0",18)); r.addView(button("📈 ANALYTICS")); addBack(r);
     }
 
     private void showSettings() {
+        LinearLayout r=page(); r.addView(text("⚙️ SETTINGS & PRIVACY",26));
+        r.addView(button("🔐 ACCOUNT & PASSWORD")); r.addView(button("🔒 PRIVACY"));
+        r.addView(button("🛡️ SECURITY")); r.addView(button("🔔 NOTIFICATION SETTINGS"));
+        r.addView(button("💬 MESSAGE SETTINGS")); r.addView(button("👥 FOLLOWERS & FOLLOWING"));
+        r.addView(button("🚫 BLOCKING")); r.addView(button("🎬 CONTENT PREFERENCES"));
+        r.addView(button("🌐 LANGUAGE")); r.addView(button("📱 DATA USAGE"));
+        r.addView(button("❓ HELP & SUPPORT")); r.addView(button("📄 TERMS & POLICIES"));
+        r.addView(button("⚠️ DELETE ACCOUNT")); addBack(r);
+    }
 
-        LinearLayout layout =
-                createPage();
-
-        layout.addView(
-                makeText(
-                        "SETTINGS & PRIVACY",
-                        26
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "ACCOUNT & PASSWORD"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "PRIVACY"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "SECURITY"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "NOTIFICATION SETTINGS"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "MESSAGE SETTINGS"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "FOLLOWERS & FOLLOWING"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "BLOCKING"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "CONTENT PREFERENCES"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "LANGUAGE"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "DATA USAGE"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "HELP & SUPPORT"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "TERMS & POLICIES"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "DELETE ACCOUNT"
-                )
-        );
-
-        addBackButton(layout);
+    private void showReport() {
+        String[] options={"Report User","Report Video","Spam","Harassment","Copyright","Block User"};
+        new AlertDialog.Builder(this).setTitle("🚨 REPORT / BLOCK").setItems(options,
+                (d,w)->Toast.makeText(this,options[w],Toast.LENGTH_SHORT).show())
+                .setNegativeButton("CANCEL",null).show();
     }
 
     private void showAdminDashboard() {
-
-        LinearLayout layout =
-                createPage();
-
-        layout.addView(
-                makeText(
-                        "ADMIN DASHBOARD",
-                        28
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Users: 0",
-                        18
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Videos: 0",
-                        18
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Reports: 0",
-                        18
-                )
-        );
-
-        layout.addView(
-                makeText(
-                        "Active Users: 0",
-                        18
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "MANAGE USERS"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "MANAGE VIDEOS"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "MANAGE REPORTS"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "DISPUTES"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "MESSAGE MODERATION"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "CREATOR MANAGEMENT"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "CREATOR EARNINGS"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "ADS MANAGEMENT"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "APP ANALYTICS"
-                )
-        );
-
-        layout.addView(
-                makeButton(
-                        "APP SETTINGS"
-                )
-        );
-
-        addBackButton(layout);
+        LinearLayout r=page(); r.addView(text("🛠️ ADMIN DASHBOARD",28));
+        r.addView(text("Users: 0",18)); r.addView(text("Videos: 0",18));
+        r.addView(text("Reports: 0",18)); r.addView(text("Active Users: 0",18));
+        r.addView(button("👥 MANAGE USERS")); r.addView(button("🎬 MANAGE VIDEOS"));
+        r.addView(button("🚨 MANAGE REPORTS")); r.addView(button("⚖️ DISPUTES"));
+        r.addView(button("💬 MESSAGE MODERATION")); r.addView(button("⭐ CREATOR MANAGEMENT"));
+        r.addView(button("💰 CREATOR EARNINGS")); r.addView(button("📢 ADS MANAGEMENT"));
+        r.addView(button("📈 APP ANALYTICS")); r.addView(button("⚙️ APP SETTINGS")); addBack(r);
     }
 
-    private void addBackButton(
-            LinearLayout layout
-    ) {
-
-        Button back =
-                makeButton("BACK");
-
-        back.setOnClickListener(
-                v -> showHome()
-        );
-
-        layout.addView(back);
+    private void addBack(LinearLayout r) {
+        Button b=button("← BACK TO HOME"); b.setOnClickListener(v->showHome()); r.addView(b);
     }
 
-    @Override
-    protected void onActivityResult(
-            int requestCode,
-            int resultCode,
-            Intent data
-    ) {
-
-        super.onActivityResult(
-                requestCode,
-                resultCode,
-                data
-        );
-
-        if (
-                requestCode == 100 &&
-                resultCode == RESULT_OK &&
-                data != null
-        ) {
-
-            Uri videoUri =
-                    data.getData();
-
-            if (videoUri != null) {
-
-                try {
-
-                    getContentResolver()
-                            .takePersistableUriPermission(
-                                    videoUri,
-                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                            );
-
-                } catch (Exception ignored) {
-                }
-
-                MediaController controller =
-                        new MediaController(this);
-
-                controller.setAnchorView(
-                        videoView
-                );
-
-                videoView.setMediaController(
-                        controller
-                );
-
-                videoView.setVideoURI(
-                        videoUri
-                );
-
-                videoView.setOnPreparedListener(
-                        mp -> {
-
-                            mp.setLooping(true);
-
-                            videoView.start();
-                        }
-                );
-
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
+        super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode==100 && resultCode==RESULT_OK && data!=null) {
+            Uri videoUri=data.getData();
+            if(videoUri!=null) {
+                try { getContentResolver().takePersistableUriPermission(videoUri,Intent.FLAG_GRANT_READ_URI_PERMISSION); }
+                catch(Exception ignored) {}
+                MediaController controller=new MediaController(this);
+                controller.setAnchorView(videoView);
+                videoView.setMediaController(controller);
+                videoView.setVideoURI(videoUri);
+                videoView.setOnPreparedListener(mp->{ mp.setLooping(true); videoView.start(); });
                 videoView.requestFocus();
             }
         }
