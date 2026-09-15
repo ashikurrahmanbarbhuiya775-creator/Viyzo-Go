@@ -1,0 +1,144 @@
+package com.viyzo.app;
+
+import android.net.Uri;
+import android.os.Bundle;
+import android.view.Gravity;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.Toast;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.media3.common.MediaItem;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.PlayerView;
+
+public class MainActivity extends AppCompatActivity {
+
+    private ExoPlayer player;
+    private PlayerView playerView;
+
+    private final ActivityResultLauncher<String> videoPicker =
+            registerForActivityResult(
+                    new ActivityResultContracts.GetContent(),
+                    this::playVideo
+            );
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setGravity(Gravity.CENTER);
+        root.setPadding(24, 24, 24, 24);
+        root.setBackgroundColor(0xFF141418);
+
+        playerView = new PlayerView(this);
+        playerView.setUseController(true);
+
+        LinearLayout.LayoutParams videoParams =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        0,
+                        1
+                );
+
+        root.addView(playerView, videoParams);
+
+        Button selectVideo = new Button(this);
+        selectVideo.setText("SELECT & PLAY VIDEO");
+        selectVideo.setOnClickListener(v ->
+                videoPicker.launch("video/*")
+        );
+
+        root.addView(selectVideo);
+
+        Button profile = new Button(this);
+        profile.setText("PROFILE");
+        profile.setOnClickListener(v ->
+                Toast.makeText(
+                        this,
+                        "Viyzo Go Profile",
+                        Toast.LENGTH_SHORT
+                ).show()
+        );
+
+        root.addView(profile);
+
+        Button settings = new Button(this);
+        settings.setText("SETTINGS");
+        settings.setOnClickListener(v ->
+                Toast.makeText(
+                        this,
+                        "Viyzo Go Settings",
+                        Toast.LENGTH_SHORT
+                ).show()
+        );
+
+        root.addView(settings);
+
+        Button logout = new Button(this);
+        logout.setText("LOGOUT");
+        logout.setOnClickListener(v ->
+                Toast.makeText(
+                        this,
+                        "Logout",
+                        Toast.LENGTH_SHORT
+                ).show()
+        );
+
+        root.addView(logout);
+
+        setContentView(root);
+    }
+
+    private void playVideo(Uri videoUri) {
+
+        if (videoUri == null) {
+            Toast.makeText(
+                    this,
+                    "Video select नहीं हुआ",
+                    Toast.LENGTH_SHORT
+            ).show();
+            return;
+        }
+
+        releasePlayer();
+
+        player = new ExoPlayer.Builder(this).build();
+
+        playerView.setPlayer(player);
+
+        MediaItem mediaItem =
+                MediaItem.fromUri(videoUri);
+
+        player.setMediaItem(mediaItem);
+        player.prepare();
+        player.play();
+    }
+
+    private void releasePlayer() {
+
+        if (player != null) {
+            player.release();
+            player = null;
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+
+        if (player != null) {
+            player.pause();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        releasePlayer();
+        super.onDestroy();
+    }
+}
