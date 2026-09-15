@@ -16,9 +16,23 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.VideoView;
+import android.widget.DatePicker;
+import android.app.DatePickerDialog;
+import android.speech.tts.TextToSpeech;
+import android.content.SharedPreferences;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+import android.content.ContentValues;
+import java.util.Locale;
 import android.widget.MediaController;
 
 public class MainActivity extends Activity {
+
+    private TextToSpeech tts;
+    private AccountDb db;
+    private String currentName = "Viyzo User";
+    private String currentUsername = "";
+    private String currentDob = "";
     private VideoView videoView;
     private int likeCount = 0;
     private boolean liked = false;
@@ -117,53 +131,46 @@ public class MainActivity extends Activity {
         title.setGravity(Gravity.CENTER);
         root.addView(title);
 
-        EditText name = new EditText(this);
-        name.setHint("Full name");
-        name.setTextColor(Color.WHITE);
-        name.setHintTextColor(Color.GRAY);
-        root.addView(name);
+        EditText name = field("Full name"); root.addView(name);
+        EditText username = field("Username"); root.addView(username);
+        EditText email = field("Email"); email.setInputType(33); root.addView(email);
+        EditText password = field("Password"); password.setInputType(129); root.addView(password);
+        EditText confirm = field("Confirm password"); confirm.setInputType(129); root.addView(confirm);
 
-        EditText email = new EditText(this);
-        email.setHint("Email");
-        email.setTextColor(Color.WHITE);
-        email.setHintTextColor(Color.GRAY);
-        email.setInputType(33);
-        root.addView(email);
+        Button dob = button("📅 DATE OF BIRTH");
+        dob.setOnClickListener(v -> {
+            DatePickerDialog d = new DatePickerDialog(this, (view, y, m, day) -> {
+                currentDob = String.format(Locale.US, "%04d-%02d-%02d", y, m + 1, day);
+                dob.setText("📅 DOB: " + currentDob);
+            }, 2000, 0, 1);
+            d.show();
+            speak("Please select your date of birth");
+        });
+        root.addView(dob);
 
-        EditText password = new EditText(this);
-        password.setHint("Password");
-        password.setTextColor(Color.WHITE);
-        password.setHintTextColor(Color.GRAY);
-        password.setInputType(129);
-        root.addView(password);
-
-        EditText confirm = new EditText(this);
-        confirm.setHint("Confirm password");
-        confirm.setTextColor(Color.WHITE);
-        confirm.setHintTextColor(Color.GRAY);
-        confirm.setInputType(129);
-        root.addView(confirm);
+        Button voice = button("🔊 VOICE HELP");
+        voice.setOnClickListener(v -> speak("Enter your name, username, email, password, and date of birth"));
+        root.addView(voice);
 
         Button create = button("CREATE ACCOUNT");
         create.setOnClickListener(v -> {
-            if (name.getText().toString().trim().isEmpty()
-                    || email.getText().toString().trim().isEmpty()
-                    || password.getText().toString().isEmpty()
-                    || confirm.getText().toString().isEmpty()) {
-                Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (!password.getText().toString().equals(confirm.getText().toString())) {
-                Toast.makeText(this, "Passwords do not match", Toast.LENGTH_SHORT).show();
-                return;
-            }
+            String n=name.getText().toString().trim(), u=username.getText().toString().trim();
+            String e=email.getText().toString().trim(), pw=password.getText().toString();
+            if(n.isEmpty()||u.isEmpty()||e.isEmpty()||pw.isEmpty()||currentDob.isEmpty()) { Toast.makeText(this,"Please fill all fields",Toast.LENGTH_SHORT).show(); return; }
+            if(!pw.equals(confirm.getText().toString())) { Toast.makeText(this,"Passwords do not match",Toast.LENGTH_SHORT).show(); return; }
+            if(db.usernameExists(u) || db.emailExists(e)) { Toast.makeText(this,"Username or email already exists",Toast.LENGTH_SHORT).show(); return; }
+            db.createAccount(n,u,e,pw,currentDob,Locale.getDefault().toLanguageTag());
+            currentName=n; currentUsername=u;
+            Toast.makeText(this,"Account created",Toast.LENGTH_SHORT).show();
+            speak("Your Viyzo Go account has been created");
             showHome();
         });
         root.addView(create);
+        Button back = button("BACK TO LOGIN"); back.setOnClickListener(v -> showLogin()); root.addView(back);
+    }
 
-        Button back = button("BACK TO LOGIN");
-        back.setOnClickListener(v -> showLogin());
-        root.addView(back);
+    private EditText field(String hint) {
+        EditText e = new EditText(this); e.setHint(hint); e.setTextColor(Color.WHITE); e.setHintTextColor(Color.GRAY); return e;
     }
 
     private void showHome() {
@@ -229,6 +236,14 @@ public class MainActivity extends Activity {
         Button report = button("🚨 REPORT / BLOCK"); report.setOnClickListener(v -> showReport());
         Button admin = button("🛠️ ADMIN"); admin.setOnClickListener(v -> showAdminDashboard());
         addRow(r6,report,admin); root.addView(r6);
+
+        Button language = button("🌐 APP LANGUAGE / ALL LANGUAGES");
+        language.setOnClickListener(v -> showAllLanguages());
+        root.addView(language);
+
+        Button account = button("👤 ACCOUNT: " + currentName);
+        account.setOnClickListener(v -> showAccountDetails());
+        root.addView(account);
 
         Button logout = button("🚪 LOGOUT");
         logout.setOnClickListener(v -> Toast.makeText(this,"Logout test",Toast.LENGTH_SHORT).show());
@@ -406,6 +421,38 @@ public class MainActivity extends Activity {
                         Toast.makeText(this, "Delete account - TEST", Toast.LENGTH_SHORT).show())
                 .setNegativeButton("CANCEL", null)
                 .show();
+    }
+
+    private void speak(String text) {
+        if (tts != null) tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "viyzo_voice");
+    }
+
+    private void showAccountDetails() {
+        new AlertDialog.Builder(this).setTitle("👤 ACCOUNT")
+            .setMessage("Name: " + currentName + "\nUsername: " + currentUsername + "\nDOB: " + currentDob)
+            .setPositiveButton("OK", null).show();
+    }
+
+    private void showAllLanguages() {
+        Locale[] locales = Locale.getAvailableLocales();
+        java.util.ArrayList<String> list = new java.util.ArrayList<>();
+        java.util.HashSet<String> seen = new java.util.HashSet<>();
+        for(Locale l: locales) { String tag=l.toLanguageTag(); if(!tag.isEmpty() && seen.add(tag)) list.add(tag + " — " + l.getDisplayName(l)); }
+        java.util.Collections.sort(list);
+        String[] arr=list.toArray(new String[0]);
+        new AlertDialog.Builder(this).setTitle("🌐 LANGUAGES")
+            .setItems(arr,(d,w)->{ String tag=arr[w].split(" — ")[0]; Locale chosen=Locale.forLanguageTag(tag); Locale.setDefault(chosen); if(tts!=null) tts.setLanguage(chosen); Toast.makeText(this,"Selected: "+chosen.getDisplayName(),Toast.LENGTH_SHORT).show(); speak("Language selected"); })
+            .setNegativeButton("CANCEL",null).show();
+    }
+
+    private static class AccountDb extends SQLiteOpenHelper {
+        AccountDb(Activity c){ super(c,"viyzo_accounts.db",null,1); }
+        public void onCreate(SQLiteDatabase d){ d.execSQL("CREATE TABLE accounts(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT,username TEXT UNIQUE,email TEXT UNIQUE,password TEXT,dob TEXT,language TEXT,created_at INTEGER)"); }
+        public void onUpgrade(SQLiteDatabase d,int a,int b){ d.execSQL("DROP TABLE IF EXISTS accounts"); onCreate(d); }
+        boolean usernameExists(String u){ return exists("username",u); }
+        boolean emailExists(String e){ return exists("email",e); }
+        boolean exists(String col,String val){ SQLiteDatabase d=getReadableDatabase(); android.database.Cursor c=d.rawQuery("SELECT 1 FROM accounts WHERE "+col+"=? LIMIT 1",new String[]{val}); boolean x=c.moveToFirst(); c.close(); return x; }
+        void createAccount(String n,String u,String e,String p,String dob,String lang){ ContentValues v=new ContentValues(); v.put("name",n);v.put("username",u);v.put("email",e);v.put("password",p);v.put("dob",dob);v.put("language",lang);v.put("created_at",System.currentTimeMillis());getWritableDatabase().insertOrThrow("accounts",null,v); }
     }
 
     private void showReport() {
