@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.graphics.Color;
 import android.view.Gravity;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -20,65 +21,51 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        LinearLayout mainLayout = new LinearLayout(this);
-        mainLayout.setOrientation(LinearLayout.VERTICAL);
-        mainLayout.setGravity(Gravity.CENTER);
-        mainLayout.setPadding(20, 20, 20, 20);
-        mainLayout.setBackgroundColor(Color.rgb(20, 20, 24));
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(20, 20, 20, 20);
+        layout.setBackgroundColor(Color.rgb(20, 20, 24));
 
         TextView title = new TextView(this);
         title.setText("VIYZO GO");
-        title.setTextSize(30);
         title.setTextColor(Color.WHITE);
+        title.setTextSize(28);
         title.setGravity(Gravity.CENTER);
 
-        mainLayout.addView(title);
+        layout.addView(title,
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                ));
 
         videoView = new VideoView(this);
 
         LinearLayout.LayoutParams videoParams =
                 new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
                         0,
                         1
                 );
 
         videoParams.setMargins(0, 20, 0, 20);
-        mainLayout.addView(videoView, videoParams);
+        layout.addView(videoView, videoParams);
 
-        Button selectVideo = new Button(this);
-        selectVideo.setText("SELECT VIDEO");
+        Button selectButton = new Button(this);
+        selectButton.setText("SELECT VIDEO");
 
-        selectVideo.setOnClickListener(v -> {
-
+        selectButton.setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             intent.setType("video/*");
             intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
 
             startActivityForResult(intent, 100);
         });
 
-        mainLayout.addView(selectVideo);
+        layout.addView(selectButton);
 
-        Button profile = new Button(this);
-        profile.setText("PROFILE");
-
-        profile.setOnClickListener(v ->
-                title.setText("VIYZO GO\nPROFILE")
-        );
-
-        mainLayout.addView(profile);
-
-        Button settings = new Button(this);
-        settings.setText("SETTINGS");
-
-        settings.setOnClickListener(v ->
-                title.setText("VIYZO GO\nSETTINGS")
-        );
-
-        mainLayout.addView(settings);
-
-        setContentView(mainLayout);
+        setContentView(layout);
     }
 
     @Override
@@ -97,6 +84,14 @@ public class MainActivity extends Activity {
 
             if (videoUri != null) {
 
+                try {
+                    getContentResolver().takePersistableUriPermission(
+                            videoUri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    );
+                } catch (Exception ignored) {
+                }
+
                 MediaController controller =
                         new MediaController(this);
 
@@ -104,9 +99,24 @@ public class MainActivity extends Activity {
 
                 videoView.setMediaController(controller);
                 videoView.setVideoURI(videoUri);
+
+                videoView.setOnPreparedListener(mp -> {
+                    mp.setLooping(true);
+                    videoView.start();
+                });
+
+                videoView.setOnErrorListener((mp, what, extra) -> {
+                    titleMessage();
+                    return true;
+                });
+
                 videoView.requestFocus();
-                videoView.start();
             }
         }
+    }
+
+    private void titleMessage() {
+        // Video could not be played.
+        // The app remains open instead of crashing.
     }
 }
