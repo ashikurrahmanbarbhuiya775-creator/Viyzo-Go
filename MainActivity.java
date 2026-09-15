@@ -58,7 +58,115 @@ public class MainActivity extends Activity {
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
-        showHome();
+        showLogin();
+    }
+
+
+    private void showLogin() {
+        LinearLayout root = page();
+
+        TextView logo = text("VIYZO GO", 34);
+        logo.setGravity(Gravity.CENTER);
+        logo.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        root.addView(logo);
+
+        TextView welcome = text("WELCOME TO VIYZO GO", 20);
+        welcome.setGravity(Gravity.CENTER);
+        root.addView(welcome);
+
+        EditText email = new EditText(this);
+        email.setHint("Email");
+        email.setTextColor(Color.WHITE);
+        email.setHintTextColor(Color.GRAY);
+        email.setInputType(33);
+        root.addView(email);
+
+        EditText password = new EditText(this);
+        password.setHint("Password");
+        password.setTextColor(Color.WHITE);
+        password.setHintTextColor(Color.GRAY);
+        password.setInputType(129);
+        root.addView(password);
+
+        Button login = button("LOGIN");
+        login.setOnClickListener(v -> {
+            if (email.getText().toString().trim().isEmpty()
+                    || password.getText().toString().isEmpty()) {
+                Toast.makeText(this, "Email and password required", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            showHome();
+        });
+        root.addView(login);
+
+        Button create = button("CREATE NEW ACCOUNT");
+        create.setOnClickListener(v -> showSignup());
+        root.addView(create);
+
+        Button forgot = button("FORGOT PASSWORD");
+        forgot.setOnClickListener(v ->
+                Toast.makeText(this, "Password reset - TEST", Toast.LENGTH_SHORT).show());
+        root.addView(forgot);
+
+        TextView note = text("TEST LOGIN — Firebase will be connected later", 12);
+        note.setGravity(Gravity.CENTER);
+        root.addView(note);
+    }
+
+    private void showSignup() {
+        LinearLayout root = page();
+
+        TextView title = text("CREATE VIYZO ACCOUNT", 26);
+        title.setGravity(Gravity.CENTER);
+        root.addView(title);
+
+        EditText name = new EditText(this);
+        name.setHint("Full name");
+        name.setTextColor(Color.WHITE);
+        name.setHintTextColor(Color.GRAY);
+        root.addView(name);
+
+        EditText email = new EditText(this);
+        email.setHint("Email");
+        email.setTextColor(Color.WHITE);
+        email.setHintTextColor(Color.GRAY);
+        email.setInputType(33);
+        root.addView(email);
+
+        EditText password = new EditText(this);
+        password.setHint("Password");
+        password.setTextColor(Color.WHITE);
+        password.setHintTextColor(Color.GRAY);
+        password.setInputType(129);
+        root.addView(password);
+
+        EditText confirm = new EditText(this);
+        confirm.setHint("Confirm password");
+        confirm.setTextColor(Color.WHITE);
+        confirm.setHintTextColor(Color.GRAY);
+        confirm.setInputType(129);
+        root.addView(confirm);
+
+        Button create = button("CREATE ACCOUNT");
+        create.setOnClickListener(v -> {
+            if (name.getText().toString().trim().isEmpty()
+                    || email.getText().toString().trim().isEmpty()
+                    || password.getText().toString().isEmpty()
+                    || confirm.getText().toString().isEmpty()) {
+                Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (!password.getText().toString().equals(confirm.getText().toString())) {
+                Toast.makeText(this, "Passwords do not match", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            showHome();
+        });
+        root.addView(create);
+
+        Button back = button("BACK TO LOGIN");
+        back.setOnClickListener(v -> showLogin());
+        root.addView(back);
     }
 
     private void showHome() {
