@@ -23,6 +23,7 @@ public class MainActivity extends Activity {
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setGravity(Gravity.CENTER);
         layout.setPadding(20, 20, 20, 20);
         layout.setBackgroundColor(Color.rgb(20, 20, 24));
 
@@ -54,6 +55,7 @@ public class MainActivity extends Activity {
         selectButton.setText("SELECT VIDEO");
 
         selectButton.setOnClickListener(v -> {
+
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             intent.setType("video/*");
             intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -105,18 +107,8 @@ public class MainActivity extends Activity {
                     videoView.start();
                 });
 
-                videoView.setOnErrorListener((mp, what, extra) -> {
-                    titleMessage();
-                    return true;
-                });
-
                 videoView.requestFocus();
             }
         }
-    }
-
-    private void titleMessage() {
-        // Video could not be played.
-        // The app remains open instead of crashing.
     }
 }
