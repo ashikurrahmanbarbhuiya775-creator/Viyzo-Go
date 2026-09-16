@@ -54,6 +54,9 @@ public class MainActivity extends Activity {
     private String currentPhone = "";
     private String currentEmail = "";
     private String selectedLanguageName = "English";
+    private int friendCount = 0;
+    private String postAs = "Personal ID";
+    private String pageName = "";
     private Locale selectedVoiceLocale = Locale.ENGLISH;
 
     private Uri selectedVideoUri;
@@ -426,6 +429,22 @@ public class MainActivity extends Activity {
             startActivityForResult(intent, REQ_VIDEO);
         });
         r.addView(select);
+
+        Button postAsButton = button("📝 POST AS: " + postAs);
+        postAsButton.setOnClickListener(v -> showPostAs());
+        r.addView(postAsButton);
+
+        Button friends = button("👥 FRIENDS " + friendCount + " / 5000");
+        friends.setOnClickListener(v -> addFriendTest());
+        r.addView(friends);
+
+        Button pageButton = button("📄 MY PAGE");
+        pageButton.setOnClickListener(v -> showPageManager());
+        r.addView(pageButton);
+
+        Button liveButton = button("🔴 LIVE VIDEO");
+        liveButton.setOnClickListener(v -> showLiveSetup());
+        r.addView(liveButton);
 
         Button music = button("🎵 ADD MUSIC / SAFE MUSIC LIBRARY");
         music.setOnClickListener(v -> showMusicLibrary());
@@ -881,6 +900,34 @@ public class MainActivity extends Activity {
 
     /* ================= SETTINGS ================= */
 
+    private void showPostAs() {
+        String[] items = pageName.isEmpty() ? new String[]{"Personal ID"} : new String[]{"Personal ID", "Page: " + pageName};
+        new AlertDialog.Builder(this).setTitle("POST AS").setItems(items, (d,w) -> { postAs=items[w]; speak("Posting as " + postAs); showHome(); }).show();
+    }
+
+    private void addFriendTest() {
+        if (friendCount >= 5000) { toast("Friends limit reached: 5,000. You can still follow users."); return; }
+        friendCount++; toast("Friend added: " + friendCount + "/5000");
+    }
+
+    private void showPageManager() {
+        LinearLayout r=page(); title(r,"📄 MY PAGE");
+        EditText name=field("Page name"); if(!pageName.isEmpty()) name.setText(pageName); r.addView(name);
+        addSettingButton(r,"PAGE FEATURES","Profile photo\nCover photo\nBio\nFollowers\nVideos / Reels\nLive\nComments\nMessages\nNotifications\nManagers / Admin");
+        Button save=button("SAVE PAGE"); save.setOnClickListener(v->{pageName=name.getText().toString().trim(); if(pageName.isEmpty()){toast("Enter a page name");return;} toast("Page saved: "+pageName);}); r.addView(save);
+        addSettingButton(r,"PAGE MONETIZATION","Eligibility\nEarnings\nPayout status");
+        Button back=button("BACK TO HOME"); back.setOnClickListener(v->showHome()); r.addView(back); setContentView(r);
+    }
+
+    private void showLiveSetup() {
+        LinearLayout r=page(); title(r,"🔴 LIVE VIDEO");
+        addSettingButton(r,"LIVE CONTROLS","Camera + microphone permission\nLive title\nAudience\nLive comments\nReactions\nViewer count\nEnd live\nSave replay");
+        EditText t=field("Live title"); r.addView(t);
+        Button start=button("START TEST LIVE"); start.setOnClickListener(v->{toast("Test Live started. Online live streaming needs a streaming server."); speak("Live started");}); r.addView(start);
+        Button end=button("END LIVE"); end.setOnClickListener(v->{toast("Live ended"); speak("Live ended");}); r.addView(end);
+        Button back=button("BACK TO HOME"); back.setOnClickListener(v->showHome()); r.addView(back); setContentView(r);
+    }
+
     private void showSettings() {
         LinearLayout r = page();
         title(r, "⚙️ SETTINGS & PRIVACY");
@@ -1044,11 +1091,12 @@ public class MainActivity extends Activity {
     private class AccountDb extends SQLiteOpenHelper {
 
         AccountDb() {
-            super(MainActivity.this, "viyzo_go.db", null, 1);
+            super(MainActivity.this, "viyzo_go.db", null, 2);
         }
 
         @Override
         public void onCreate(SQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS pages (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT UNIQUE,followers INTEGER DEFAULT 0)");
             db.execSQL(
                     "CREATE TABLE accounts (" +
                             "id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -1065,8 +1113,7 @@ public class MainActivity extends Activity {
 
         @Override
         public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-            db.execSQL("DROP TABLE IF EXISTS accounts");
-            onCreate(db);
+            if (oldVersion < 2) db.execSQL("CREATE TABLE IF NOT EXISTS pages (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT UNIQUE,followers INTEGER DEFAULT 0)");
         }
     }
 }
