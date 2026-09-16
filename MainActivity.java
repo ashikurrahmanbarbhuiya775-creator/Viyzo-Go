@@ -1075,7 +1075,7 @@ public class MainActivity extends Activity {
         LinearLayout r=page(); title(r,"🔒 PRIVACY");
         Button p=button("PRIVATE ACCOUNT: " + (privateAccount?"ON":"OFF"));
         p.setOnClickListener(v->{privateAccount=!privateAccount;p.setText("PRIVATE ACCOUNT: "+(privateAccount?"ON":"OFF"));}); r.addView(p);
-        Button whoMessage = button("WHO CAN MESSAGE ME"); whoMessage.setOnClickListener(v -> showMessageSettings()); r.addView(whoMessage);
+        r.addView(button("WHO CAN MESSAGE ME")).setOnClickListener(v -> showMessageSettings());
         addSettingButton(r,"PROFILE VISIBILITY","Public profile\nFriends\nFollowers");
         addSettingButton(r,"ACTIVITY VISIBILITY","Online status\nLikes\nComments");
         addBack(r);
