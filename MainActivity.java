@@ -19,6 +19,8 @@ import android.view.Gravity;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -57,15 +59,6 @@ public class MainActivity extends Activity {
     private int friendCount = 0;
     private String postAs = "Personal ID";
     private String pageName = "";
-    private String pageBio = "";
-    private int followerCount = 0;
-    private boolean privateAccount = false;
-    private boolean dataSaver = false;
-    private boolean autoplay = true;
-    private String videoMode = "FULL WIDTH";
-    private String audience = "Public";
-    private boolean notificationsOn = true;
-    private boolean messageRequestsOn = true;
     private Locale selectedVoiceLocale = Locale.ENGLISH;
 
     private Uri selectedVideoUri;
@@ -410,218 +403,294 @@ public class MainActivity extends Activity {
     /* ================= HOME ================= */
 
     private void showHome() {
-        LinearLayout r = page();
+        // Facebook-style social Home: top bar, composer, stories, feed, fixed bottom navigation.
+        FrameLayout shell = new FrameLayout(this);
+        shell.setBackgroundColor(Color.rgb(18, 18, 22));
 
-        // Header: Facebook-like structure, but with Viyzo branding.
-        LinearLayout header = row();
-        Button menu = button("☰");
-        menu.setTextSize(27);
-        menu.setOnClickListener(v -> showQuickMenu());
-        Button brand = button("VIYZO GO");
-        brand.setTextSize(25);
+        LinearLayout main = new LinearLayout(this);
+        main.setOrientation(LinearLayout.VERTICAL);
+        main.setBackgroundColor(Color.rgb(18, 18, 22));
+
+        // TOP BAR
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.setPadding(dp(8), dp(8), dp(8), dp(6));
+
+        TextView menu = text("☰", 30);
+        menu.setGravity(Gravity.CENTER);
+        menu.setOnClickListener(v -> showSettings());
+        top.addView(menu, new LinearLayout.LayoutParams(dp(48), dp(50)));
+
+        TextView brand = text("VIYZO GO", 25);
         brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        Button add = button("＋");
-        add.setTextSize(25);
-        add.setOnClickListener(v -> showCreateMenu());
-        Button search = button("⌕");
-        search.setTextSize(27);
-        search.setOnClickListener(v -> showSearch());
-        Button msg = button("●");
-        msg.setTextSize(20);
-        msg.setOnClickListener(v -> showMessages());
-        header.addView(menu, new LinearLayout.LayoutParams(0, dp(58), 0.18f));
-        header.addView(brand, new LinearLayout.LayoutParams(0, dp(58), 0.42f));
-        header.addView(add, new LinearLayout.LayoutParams(0, dp(58), 0.13f));
-        header.addView(search, new LinearLayout.LayoutParams(0, dp(58), 0.13f));
-        header.addView(msg, new LinearLayout.LayoutParams(0, dp(58), 0.14f));
-        r.addView(header);
+        brand.setTextColor(Color.rgb(255, 210, 0));
+        top.addView(brand, new LinearLayout.LayoutParams(0, dp(50), 1));
 
-        // Composer.
-        LinearLayout composer = row();
-        TextView avatar = text("👤", 30);
+        Button create = button("＋");
+        create.setTextSize(25);
+        create.setOnClickListener(v -> showPostAs());
+        top.addView(create, new LinearLayout.LayoutParams(dp(50), dp(50)));
+
+        Button searchTop = button("⌕");
+        searchTop.setTextSize(28);
+        searchTop.setOnClickListener(v -> showSearch());
+        top.addView(searchTop, new LinearLayout.LayoutParams(dp(50), dp(50)));
+
+        Button msgTop = button("●");
+        msgTop.setTextSize(18);
+        msgTop.setOnClickListener(v -> showMessages());
+        top.addView(msgTop, new LinearLayout.LayoutParams(dp(50), dp(50)));
+        main.addView(top);
+
+        // SCROLLABLE HOME CONTENT
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout feedRoot = new LinearLayout(this);
+        feedRoot.setOrientation(LinearLayout.VERTICAL);
+        feedRoot.setPadding(dp(8), 0, dp(8), dp(90));
+
+        // POST COMPOSER
+        LinearLayout composer = new LinearLayout(this);
+        composer.setOrientation(LinearLayout.HORIZONTAL);
+        composer.setGravity(Gravity.CENTER_VERTICAL);
+        composer.setPadding(dp(8), dp(6), dp(8), dp(6));
+        composer.setBackgroundColor(Color.rgb(35, 35, 42));
+
+        TextView avatar = text("👤", 28);
         avatar.setGravity(Gravity.CENTER);
-        composer.addView(avatar, new LinearLayout.LayoutParams(dp(65), dp(64)));
-        Button thought = button("What's on your mind?");
-        thought.setGravity(Gravity.CENTER_VERTICAL);
-        thought.setOnClickListener(v -> showPostComposer());
-        composer.addView(thought, new LinearLayout.LayoutParams(0, dp(64), 1));
+        composer.addView(avatar, new LinearLayout.LayoutParams(dp(48), dp(48)));
+
+        Button mind = button("What's on your mind?");
+        mind.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        mind.setOnClickListener(v -> showPostAs());
+        composer.addView(mind, new LinearLayout.LayoutParams(0, dp(48), 1));
+
         Button gallery = button("▧");
-        gallery.setTextSize(22);
+        gallery.setTextSize(24);
         gallery.setOnClickListener(v -> selectPhotoPost());
-        composer.addView(gallery, new LinearLayout.LayoutParams(dp(64), dp(64)));
-        r.addView(composer);
+        composer.addView(gallery, new LinearLayout.LayoutParams(dp(52), dp(48)));
+        feedRoot.addView(composer);
 
-        LinearLayout media = row();
-        Button videoPost = button("🎬 Video");
-        videoPost.setOnClickListener(v -> selectVideoForPost());
-        Button photoPost = button("🖼️ Photo");
-        photoPost.setOnClickListener(v -> selectPhotoPost());
-        addRow(media, videoPost, photoPost);
-        r.addView(media);
+        // QUICK POST ACTIONS
+        LinearLayout quick = row();
+        Button videoQuick = button("🎬 Video");
+        videoQuick.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("video/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(intent, REQ_VIDEO);
+        });
+        Button photoQuick = button("🖼 Photo");
+        photoQuick.setOnClickListener(v -> selectPhotoPost());
+        addRow(quick, videoQuick, photoQuick);
+        feedRoot.addView(quick);
 
-        title(r, "Stories");
-        LinearLayout stories = row();
-        String[] storyNames = {"＋ Create story", "Viyzo Creator", "Friends", "Trending"};
+        // STORIES
+        TextView storyTitle = text("Stories", 19);
+        storyTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        feedRoot.addView(storyTitle);
+
+        HorizontalScrollView storiesScroll = new HorizontalScrollView(this);
+        storiesScroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout stories = new LinearLayout(this);
+        stories.setOrientation(LinearLayout.HORIZONTAL);
+
+        String[] storyNames = {"＋ Create story", "Viyzo Creator", "Friends", "Travel", "Comedy", "Music"};
         for (String name : storyNames) {
-            Button story = button(name);
+            Button story = button("◯\n" + name);
+            story.setTextSize(12);
             story.setGravity(Gravity.CENTER);
-            stories.addView(story, new LinearLayout.LayoutParams(dp(145), dp(130)));
-            if (name.startsWith("＋")) story.setOnClickListener(v -> showStatusCreator());
+            story.setOnClickListener(v -> showStatusCreator());
+            stories.addView(story, new LinearLayout.LayoutParams(dp(105), dp(115)));
         }
-        r.addView(stories);
+        storiesScroll.addView(stories);
+        feedRoot.addView(storiesScroll);
 
+        // FEED TABS
         LinearLayout tabs = row();
         Button following = button("Following");
-        following.setOnClickListener(v -> toast("Following feed selected."));
         Button forYou = button("For You");
-        forYou.setOnClickListener(v -> toast("For You feed selected."));
-        addRow(tabs, following, forYou);
-        r.addView(tabs);
         Button trending = button("Trending");
-        trending.setOnClickListener(v -> toast("Trending feed selected."));
-        r.addView(trending);
+        addRow(tabs, following, forYou);
+        feedRoot.addView(tabs);
+        feedRoot.addView(trending);
 
-        // Main video post. The existing VideoView selection/playback flow is retained.
+        // POST 1 — the working VideoView stays here.
         LinearLayout post = new LinearLayout(this);
         post.setOrientation(LinearLayout.VERTICAL);
-        post.setPadding(dp(8), dp(8), dp(8), dp(8));
-        post.setBackgroundColor(Color.rgb(30,30,36));
+        post.setPadding(dp(6), dp(8), dp(6), dp(8));
+        post.setBackgroundColor(Color.rgb(28, 28, 34));
 
-        post.addView(text("👤 " + currentName + "  •  " + postAs, 18));
-        post.addView(text(audience, 13));
-        post.addView(text("Share your latest Viyzo video with friends and followers.", 16));
+        TextView postHeader = text("👤 " + currentName + "  •  " + postAs + "\nPublic", 15);
+        postHeader.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        post.addView(postHeader);
+        post.addView(text("Share your latest Viyzo video with friends and followers.", 14));
 
         videoView = new VideoView(this);
         LinearLayout.LayoutParams vp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(430));
-        vp.setMargins(0, dp(6), 0, dp(6));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(360));
+        vp.setMargins(0, dp(8), 0, dp(8));
         post.addView(videoView, vp);
 
+        // KEEPING THE WORKING VIDEO SELECTION FLOW EXACTLY INTACT.
         Button select = button("🎬 SELECT / UPLOAD VIDEO");
-        select.setOnClickListener(v -> selectVideoForPost());
+        select.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("video/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(intent, REQ_VIDEO);
+        });
         post.addView(select);
 
-        LinearLayout actions1 = row();
+        LinearLayout actions = row();
         Button like = button("❤️ " + likeCount);
         like.setOnClickListener(v -> {
             liked = !liked;
             if (liked) likeCount++; else if (likeCount > 0) likeCount--;
-            like.setText("❤️ " + likeCount);
+            like.setText((liked ? "❤️ Liked " : "❤️ Like ") + likeCount);
         });
         Button comment = button("💬 " + commentCount);
-        comment.setOnClickListener(v -> { showComments(); commentCount++; comment.setText("💬 " + commentCount); });
-        addRow(actions1, like, comment);
-        post.addView(actions1);
+        comment.setOnClickListener(v -> { showComments(); commentCount++; });
+        addRow(actions, like, comment);
+        post.addView(actions);
 
         LinearLayout actions2 = row();
-        Button share = button("↗ SHARE " + shareCount);
-        share.setOnClickListener(v -> { shareCount++; share.setText("↗ SHARE " + shareCount); shareVideo(); });
-        Button save = button("🔖 SAVE");
-        save.setOnClickListener(v -> toast("Saved to your saved items."));
+        Button share = button("↗ Share");
+        share.setOnClickListener(v -> { shareCount++; shareVideo(); });
+        Button save = button("🔖 Save");
+        save.setOnClickListener(v -> toast("Saved - prototype"));
         addRow(actions2, share, save);
         post.addView(actions2);
-        r.addView(post);
+        feedRoot.addView(post);
 
-        // Creator tools / posting controls.
+        // SECOND FEED CARD / PHOTO POST ENTRY
+        LinearLayout second = new LinearLayout(this);
+        second.setOrientation(LinearLayout.VERTICAL);
+        second.setPadding(dp(8), dp(12), dp(8), dp(12));
+        second.setBackgroundColor(Color.rgb(28, 28, 34));
+        TextView secondHeader = text("👥 Viyzo Community  •  2h\nPublic", 15);
+        secondHeader.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        second.addView(secondHeader);
+        second.addView(text("Post photos, status updates, and tag people.", 15));
+        Button photoPost = button("🖼 PHOTO POST");
+        photoPost.setOnClickListener(v -> selectPhotoPost());
+        second.addView(photoPost);
+        Button status = button("🟢 STATUS 24H");
+        status.setOnClickListener(v -> showStatusCreator());
+        second.addView(status);
+        feedRoot.addView(second);
+
+        // OLD FEATURES — kept available in the new Home.
+        TextView more = text("More Viyzo features", 18);
+        more.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        feedRoot.addView(more);
+
         Button postAsButton = button("📝 POST AS: " + postAs);
         postAsButton.setOnClickListener(v -> showPostAs());
-        r.addView(postAsButton);
+        feedRoot.addView(postAsButton);
 
-        LinearLayout tools1 = row();
-        Button friendsBtn = button("👥 Friends " + friendCount + "/5000");
-        friendsBtn.setOnClickListener(v -> showFriends());
-        Button pageBtn = button("📄 My Page");
-        pageBtn.setOnClickListener(v -> showPageManager());
-        addRow(tools1, friendsBtn, pageBtn);
-        r.addView(tools1);
+        Button friendsBtn = button("👥 FRIENDS " + friendCount + " / 5000");
+        friendsBtn.setOnClickListener(v -> addFriendTest());
+        feedRoot.addView(friendsBtn);
 
-        LinearLayout tools2 = row();
-        Button live = button("🔴 Live");
-        live.setOnClickListener(v -> showLiveSetup());
-        Button music = button("🎵 Music");
+        Button pageButton = button("📄 MY PAGE");
+        pageButton.setOnClickListener(v -> showPageManager());
+        feedRoot.addView(pageButton);
+
+        Button liveButton = button("🔴 LIVE VIDEO");
+        liveButton.setOnClickListener(v -> showLiveSetup());
+        feedRoot.addView(liveButton);
+
+        Button music = button("🎵 ADD MUSIC / SAFE MUSIC LIBRARY");
         music.setOnClickListener(v -> showMusicLibrary());
-        addRow(tools2, live, music);
-        r.addView(tools2);
+        feedRoot.addView(music);
 
-        LinearLayout tools3 = row();
-        Button status = button("🟢 Status 24H");
-        status.setOnClickListener(v -> showStatusCreator());
-        Button mention = button("＠ Mention / Tag");
+        Button mention = button("＠ MENTION / TAG PEOPLE");
         mention.setOnClickListener(v -> showMention());
-        addRow(tools3, status, mention);
-        r.addView(tools3);
+        feedRoot.addView(mention);
 
-        // Bottom navigation.
-        LinearLayout nav = row();
-        Button home = button("⌂\nHome");
-        Button reels = button("▶\nReels"); reels.setOnClickListener(v -> showReels());
-        Button fr = button("👥\nFriends"); fr.setOnClickListener(v -> showFriends());
-        Button pages = button("▣\nPages"); pages.setOnClickListener(v -> showPageManager());
-        Button alerts = button("🔔\nAlerts"); alerts.setOnClickListener(v -> showNotifications());
-        Button profile = button("👤\nProfile"); profile.setOnClickListener(v -> showProfile());
-        addNav(nav, home); addNav(nav, reels); addNav(nav, fr); addNav(nav, pages); addNav(nav, alerts); addNav(nav, profile);
-        r.addView(nav);
+        LinearLayout social = row();
+        Button profile = button("👤 PROFILE");
+        profile.setOnClickListener(v -> showProfile());
+        Button friendsOpen = button("👥 FRIENDS");
+        friendsOpen.setOnClickListener(v -> showFriends());
+        addRow(social, profile, friendsOpen);
+        feedRoot.addView(social);
 
-        r.addView(text("Viyzo Go prototype: online database, server storage, real-time messaging/live and monetization will be connected in the next phase.", 11));
-    }
+        LinearLayout social2 = row();
+        Button notif = button("🔔 NOTIFICATIONS");
+        notif.setOnClickListener(v -> showNotifications());
+        Button messages = button("💬 MESSAGES");
+        messages.setOnClickListener(v -> showMessages());
+        addRow(social2, notif, messages);
+        feedRoot.addView(social2);
 
-    private void addNav(LinearLayout r, Button b) {
-        b.setTextSize(12);
-        r.addView(b, new LinearLayout.LayoutParams(0, dp(70), 1));
-    }
+        LinearLayout social3 = row();
+        Button dashboard = button("📊 MY DASHBOARD");
+        dashboard.setOnClickListener(v -> showMyDashboard());
+        Button creator = button("💰 CREATOR");
+        creator.setOnClickListener(v -> showCreatorDashboard());
+        addRow(social3, dashboard, creator);
+        feedRoot.addView(social3);
 
-    private void selectVideoForPost() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.setType("video/*");
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-        startActivityForResult(intent, REQ_VIDEO);
-    }
+        LinearLayout social4 = row();
+        Button settings = button("⚙️ SETTINGS");
+        settings.setOnClickListener(v -> showSettings());
+        Button report = button("🚨 REPORT / BLOCK");
+        report.setOnClickListener(v -> showReport());
+        addRow(social4, settings, report);
+        feedRoot.addView(social4);
 
-    private void showReels() {
-        LinearLayout r = page();
-        title(r, "▶ REELS");
-        r.addView(text("Short vertical videos will appear here. The same selected video player is used for testing.", 15));
-        Button select = button("🎬 SELECT REEL VIDEO");
-        select.setOnClickListener(v -> selectVideoForPost());
-        r.addView(select);
-        addBack(r);
-    }
+        Button account = button("👤 ACCOUNT: " + currentName);
+        account.setOnClickListener(v -> showAccountDetails());
+        feedRoot.addView(account);
 
-    private void showPostComposer() {
-        LinearLayout r = page();
-        title(r, "CREATE POST");
-        r.addView(text("POST AS: " + postAs, 17));
-        EditText body = field("What's on your mind?");
-        body.setMinLines(4);
-        r.addView(body);
-        Button audienceButton = button("👁 AUDIENCE: " + audience);
-        audienceButton.setOnClickListener(v -> {
-            String[] a = {"Public", "Friends", "Followers", "Only me"};
-            new AlertDialog.Builder(this).setTitle("AUDIENCE").setItems(a, (d,w) -> { audience=a[w]; audienceButton.setText("👁 AUDIENCE: "+audience); }).show();
-        });
-        r.addView(audienceButton);
-        Button post = button("PUBLISH POST");
-        post.setOnClickListener(v -> { if(body.getText().toString().trim().isEmpty()){toast("Write something first.");return;} toast("Post created locally for prototype."); showHome(); });
-        r.addView(post);
-        Button video = button("🎬 ADD VIDEO"); video.setOnClickListener(v -> selectVideoForPost()); r.addView(video);
-        Button photo = button("🖼️ ADD PHOTO"); photo.setOnClickListener(v -> selectPhotoPost()); r.addView(photo);
-        addBack(r);
-    }
+        Button admin = button("🛠️ ADMIN");
+        admin.setOnClickListener(v -> showAdminDashboard());
+        feedRoot.addView(admin);
 
-    private void showCreateMenu() {
-        String[] items = {"Create Post", "Upload Video", "Photo Post", "Status 24H", "Go Live", "Create Page"};
-        new AlertDialog.Builder(this).setTitle("CREATE").setItems(items, (d,w) -> {
-            if(w==0) showPostComposer(); else if(w==1) selectVideoForPost(); else if(w==2) selectPhotoPost(); else if(w==3) showStatusCreator(); else if(w==4) showLiveSetup(); else showPageManager();
-        }).show();
-    }
+        Button logout = button("🚪 LOGOUT");
+        logout.setOnClickListener(v -> showLogin());
+        feedRoot.addView(logout);
 
-    private void showQuickMenu() {
-        String[] items = {"Profile", "Friends", "Pages", "Messages", "Notifications", "Dashboard", "Settings & Privacy", "Help & Support", "Logout"};
-        new AlertDialog.Builder(this).setTitle("☰ VIYZO MENU").setItems(items, (d,w) -> {
-            switch(w){case 0:showProfile();break;case 1:showFriends();break;case 2:showPageManager();break;case 3:showMessages();break;case 4:showNotifications();break;case 5:showMyDashboard();break;case 6:showSettings();break;case 7:showHelpSupport();break;default:showLogin();}
-        }).show();
+        feedRoot.addView(text(
+                "Music rule: Viyzo should only publish Viyzo Original, public-domain, properly licensed, or otherwise authorized tracks.",
+                11));
+
+        scroll.addView(feedRoot);
+        main.addView(scroll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+
+        // FIXED BOTTOM NAVIGATION
+        LinearLayout bottom = new LinearLayout(this);
+        bottom.setOrientation(LinearLayout.HORIZONTAL);
+        bottom.setGravity(Gravity.CENTER);
+        bottom.setBackgroundColor(Color.rgb(10, 10, 14));
+
+        Button navHome = button("⌂\nHome");
+        navHome.setOnClickListener(v -> showHome());
+        Button navReels = button("▶\nReels");
+        navReels.setOnClickListener(v -> { if (videoView != null) videoView.start(); });
+        Button navFriends = button("👥\nFriends");
+        navFriends.setOnClickListener(v -> showFriends());
+        Button navPages = button("▣\nPages");
+        navPages.setOnClickListener(v -> showPageManager());
+        Button navNoti = button("🔔\nAlerts");
+        navNoti.setOnClickListener(v -> showNotifications());
+        Button navProfile = button("👤\nProfile");
+        navProfile.setOnClickListener(v -> showProfile());
+
+        Button[] navs = {navHome, navReels, navFriends, navPages, navNoti, navProfile};
+        for (Button n : navs) bottom.addView(n, new LinearLayout.LayoutParams(0, dp(68), 1));
+
+        main.addView(bottom);
+        shell.addView(main, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(shell);
     }
 
     private LinearLayout row() {
@@ -690,17 +759,6 @@ public class MainActivity extends Activity {
             selectedProfilePhotoUri = uri;
             Toast.makeText(this, "Profile photo selected.", Toast.LENGTH_SHORT).show();
         }
-    }
-
-    /* ================= EXTRA UI SETTINGS ================= */
-
-    private void showHelpSupport() {
-        LinearLayout r=page(); title(r,"❓ HELP & SUPPORT");
-        r.addView(button("HELP CENTER"));
-        r.addView(button("REPORT A PROBLEM"));
-        r.addView(button("CONTACT SUPPORT"));
-        r.addView(button("ACCOUNT HELP"));
-        addBack(r);
     }
 
     /* ================= MUSIC ================= */
@@ -986,7 +1044,9 @@ public class MainActivity extends Activity {
 
     /* ================= SETTINGS ================= */
 
-    private void toast(String message) { Toast.makeText(this, message, Toast.LENGTH_SHORT).show(); }
+    private void toast(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
 
     private void showPostAs() {
         String[] items = pageName.isEmpty() ? new String[]{"Personal ID"} : new String[]{"Personal ID", "Page: " + pageName};
@@ -1001,147 +1061,69 @@ public class MainActivity extends Activity {
     private void showPageManager() {
         LinearLayout r=page(); title(r,"📄 MY PAGE");
         EditText name=field("Page name"); if(!pageName.isEmpty()) name.setText(pageName); r.addView(name);
-        EditText bio=field("Page bio"); if(!pageBio.isEmpty()) bio.setText(pageBio); r.addView(bio);
-        Button photo=button("🖼️ PAGE PROFILE PHOTO"); photo.setOnClickListener(v->selectPagePhoto()); r.addView(photo);
-        Button cover=button("🖼️ PAGE COVER PHOTO"); cover.setOnClickListener(v->selectPagePhoto()); r.addView(cover);
         addSettingButton(r,"PAGE FEATURES","Profile photo\nCover photo\nBio\nFollowers\nVideos / Reels\nLive\nComments\nMessages\nNotifications\nManagers / Admin");
-        Button save=button("SAVE PAGE"); save.setOnClickListener(v->{pageName=name.getText().toString().trim();pageBio=bio.getText().toString().trim();if(pageName.isEmpty()){toast("Enter a page name");return;}toast("Page saved locally: "+pageName);}); r.addView(save);
-        addSettingButton(r,"PAGE FOLLOWERS","Followers: "+followerCount+"\nFollowers are separate from personal friends.");
-        addSettingButton(r,"PAGE MONETIZATION","Eligibility\nEarnings\nPayout status\nOnline payout connection will be added later.");
-        addBack(r); setContentView(r);
-    }
-
-    private void selectPagePhoto() {
-        Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT); intent.setType("image/*"); intent.addCategory(Intent.CATEGORY_OPENABLE); intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION); startActivityForResult(intent,REQ_PROFILE_PHOTO);
+        Button save=button("SAVE PAGE"); save.setOnClickListener(v->{pageName=name.getText().toString().trim(); if(pageName.isEmpty()){toast("Enter a page name");return;} toast("Page saved: "+pageName);}); r.addView(save);
+        addSettingButton(r,"PAGE MONETIZATION","Eligibility\nEarnings\nPayout status");
+        Button back=button("BACK TO HOME"); back.setOnClickListener(v->showHome()); r.addView(back); setContentView(r);
     }
 
     private void showLiveSetup() {
         LinearLayout r=page(); title(r,"🔴 LIVE VIDEO");
-        r.addView(text("Live setup is ready as a UI prototype. Real online streaming will be connected with a streaming server later.",14));
+        addSettingButton(r,"LIVE CONTROLS","Camera + microphone permission\nLive title\nAudience\nLive comments\nReactions\nViewer count\nEnd live\nSave replay");
         EditText t=field("Live title"); r.addView(t);
-        Button aud=button("👁 AUDIENCE: "+audience); aud.setOnClickListener(v->{String[] a={"Public","Friends","Followers","Only me"};new AlertDialog.Builder(this).setTitle("LIVE AUDIENCE").setItems(a,(d,w)->{audience=a[w];aud.setText("👁 AUDIENCE: "+audience);}).show();}); r.addView(aud);
-        addSettingButton(r,"LIVE CONTROLS","Camera + microphone\nLive title\nAudience\nLive comments\nReactions\nViewer count\nEnd live\nSave replay");
-        Button start=button("🔴 START TEST LIVE"); start.setOnClickListener(v->{toast("Test Live started. Real viewers need the online streaming server.");speak("Live started");}); r.addView(start);
-        Button end=button("⏹ END LIVE"); end.setOnClickListener(v->{toast("Live ended.");speak("Live ended");}); r.addView(end);
-        addBack(r); setContentView(r);
+        Button start=button("START TEST LIVE"); start.setOnClickListener(v->{toast("Test Live started. Online live streaming needs a streaming server."); speak("Live started");}); r.addView(start);
+        Button end=button("END LIVE"); end.setOnClickListener(v->{toast("Live ended"); speak("Live ended");}); r.addView(end);
+        Button back=button("BACK TO HOME"); back.setOnClickListener(v->showHome()); r.addView(back); setContentView(r);
     }
 
     private void showSettings() {
         LinearLayout r = page();
         title(r, "⚙️ SETTINGS & PRIVACY");
 
-        Button account = button("🔐 ACCOUNT & PASSWORD");
-        account.setOnClickListener(v -> showAccountDetails()); r.addView(account);
+        addSettingButton(r, "🔐 ACCOUNT & PASSWORD",
+                "Change password\nChange email\nEdit account name\nLogin activity");
 
-        Button privacy = button("🔒 PRIVACY");
-        privacy.setOnClickListener(v -> showPrivacySettings()); r.addView(privacy);
+        addSettingButton(r, "🔒 PRIVACY",
+                "Profile privacy\nWho can message you\nPrivate account\nActivity visibility");
 
-        Button security = button("🛡️ SECURITY");
-        security.setOnClickListener(v -> showSecuritySettings()); r.addView(security);
+        addSettingButton(r, "🛡️ SECURITY",
+                "Login alerts\nTwo-step verification\nActive sessions\nSecurity checkup");
 
-        Button notifications = button("🔔 NOTIFICATION SETTINGS");
-        notifications.setOnClickListener(v -> showNotificationSettings()); r.addView(notifications);
+        addSettingButton(r, "🔔 NOTIFICATION SETTINGS",
+                "Likes\nComments\nFollowers\nMessages\nCreator notifications");
 
-        Button messages = button("💬 MESSAGE SETTINGS");
-        messages.setOnClickListener(v -> showMessageSettings()); r.addView(messages);
+        addSettingButton(r, "💬 MESSAGE SETTINGS",
+                "Message requests\nWho can message you\nRead receipts");
 
-        Button follow = button("👥 FOLLOWERS & FOLLOWING");
-        follow.setOnClickListener(v -> showFriends()); r.addView(follow);
+        addSettingButton(r, "👥 FOLLOWERS & FOLLOWING",
+                "Manage followers\nFollowing list\nFriend requests\nRemove follower");
 
-        Button blocking = button("🚫 BLOCKING");
-        blocking.setOnClickListener(v -> showBlockingSettings()); r.addView(blocking);
+        addSettingButton(r, "🚫 BLOCKING",
+                "Blocked users\nBlocked messages\nBlocked videos");
 
-        Button content = button("🎬 CONTENT PREFERENCES");
-        content.setOnClickListener(v -> showContentPreferences()); r.addView(content);
+        addSettingButton(r, "🎬 CONTENT PREFERENCES",
+                "Recommendations\nSensitive content\nTopics\nNot interested");
 
         Button language = button("🌐 LANGUAGE: " + selectedLanguageName);
-        language.setOnClickListener(v -> showLanguagePicker(language)); r.addView(language);
+        language.setOnClickListener(v -> showLanguagePicker(language));
+        r.addView(language);
 
-        Button data = button("📱 DATA USAGE");
-        data.setOnClickListener(v -> showDataUsageSettings()); r.addView(data);
+        addSettingButton(r, "📱 DATA USAGE",
+                "Data saver\nVideo quality\nAutoplay\nWi-Fi only");
 
-        Button help = button("❓ HELP & SUPPORT");
-        help.setOnClickListener(v -> showHelpSupport()); r.addView(help);
+        addSettingButton(r, "❓ HELP & SUPPORT",
+                "Help Center\nReport a problem\nContact support\nAccount help");
 
-        Button terms = button("📄 TERMS & POLICIES");
-        terms.setOnClickListener(v -> showTermsPolicies()); r.addView(terms);
+        addSettingButton(r, "📄 TERMS & POLICIES",
+                "Terms\nPrivacy Policy\nCommunity Guidelines\nCreator Policy");
 
         Button delete = button("⚠️ DELETE ACCOUNT");
-        delete.setOnClickListener(v -> showDeleteAccountDialog()); r.addView(delete);
-        addBack(r);
-    }
+        delete.setOnClickListener(v -> showDeleteAccountDialog());
+        r.addView(delete);
 
-    private void showPrivacySettings() {
-        LinearLayout r=page(); title(r,"🔒 PRIVACY");
-        Button p=button("PRIVATE ACCOUNT: " + (privateAccount?"ON":"OFF"));
-        p.setOnClickListener(v->{privateAccount=!privateAccount;p.setText("PRIVATE ACCOUNT: "+(privateAccount?"ON":"OFF"));}); r.addView(p);
-        r.addView(button("WHO CAN MESSAGE ME")).setOnClickListener(v -> showMessageSettings());
-        addSettingButton(r,"PROFILE VISIBILITY","Public profile\nFriends\nFollowers");
-        addSettingButton(r,"ACTIVITY VISIBILITY","Online status\nLikes\nComments");
-        addBack(r);
-    }
-
-    private void showSecuritySettings() {
-        LinearLayout r=page(); title(r,"🛡️ SECURITY");
-        addSettingButton(r,"LOGIN ALERTS","New login alerts\nDevice alerts");
-        addSettingButton(r,"TWO-STEP VERIFICATION","SMS or authenticator will be connected with the online backend later.");
-        addSettingButton(r,"ACTIVE SESSIONS","Current device\nOther sessions will appear after online authentication.");
-        addSettingButton(r,"SECURITY CHECKUP","Password\nLogin activity\nRecovery details");
-        addBack(r);
-    }
-
-    private void showNotificationSettings() {
-        LinearLayout r=page(); title(r,"🔔 NOTIFICATION SETTINGS");
-        Button n=button("NOTIFICATIONS: "+(notificationsOn?"ON":"OFF")); n.setOnClickListener(v->{notificationsOn=!notificationsOn;n.setText("NOTIFICATIONS: "+(notificationsOn?"ON":"OFF"));}); r.addView(n);
-        addSettingButton(r,"LIKES","Receive like notifications");
-        addSettingButton(r,"COMMENTS","Receive comment notifications");
-        addSettingButton(r,"FOLLOWERS","Receive follower notifications");
-        addSettingButton(r,"MESSAGES","Receive message notifications");
-        addBack(r);
-    }
-
-    private void showMessageSettings() {
-        LinearLayout r=page(); title(r,"💬 MESSAGE SETTINGS");
-        Button n=button("MESSAGE REQUESTS: "+(messageRequestsOn?"ON":"OFF")); n.setOnClickListener(v->{messageRequestsOn=!messageRequestsOn;n.setText("MESSAGE REQUESTS: "+(messageRequestsOn?"ON":"OFF"));}); r.addView(n);
-        addSettingButton(r,"WHO CAN MESSAGE YOU","Friends\nFollowers\nEveryone");
-        addSettingButton(r,"READ RECEIPTS","On\nOff");
-        addSettingButton(r,"MESSAGE REQUESTS","Allow\nDon't allow");
-        addBack(r);
-    }
-
-    private void showBlockingSettings() {
-        LinearLayout r=page(); title(r,"🚫 BLOCKING");
-        r.addView(button("BLOCKED USERS"));
-        r.addView(button("BLOCKED MESSAGES"));
-        r.addView(button("BLOCKED VIDEOS"));
-        addBack(r);
-    }
-
-    private void showContentPreferences() {
-        LinearLayout r=page(); title(r,"🎬 CONTENT PREFERENCES");
-        addSettingButton(r,"RECOMMENDATIONS","For You\nFollowing\nTrending");
-        addSettingButton(r,"SENSITIVE CONTENT","Standard\nLess\nMore");
-        addSettingButton(r,"TOPICS","Video\nMusic\nSports\nNews\nComedy");
-        addSettingButton(r,"NOT INTERESTED","Hide this topic\nHide this creator");
-        addBack(r);
-    }
-
-    private void showDataUsageSettings() {
-        LinearLayout r=page(); title(r,"📱 DATA USAGE");
-        Button ds=button("DATA SAVER: "+(dataSaver?"ON":"OFF")); ds.setOnClickListener(v->{dataSaver=!dataSaver;ds.setText("DATA SAVER: "+(dataSaver?"ON":"OFF"));}); r.addView(ds);
-        Button ap=button("AUTOPLAY: "+(autoplay?"ON":"OFF")); ap.setOnClickListener(v->{autoplay=!autoplay;ap.setText("AUTOPLAY: "+(autoplay?"ON":"OFF"));}); r.addView(ap);
-        Button q=button("VIDEO DISPLAY: "+videoMode); q.setOnClickListener(v->{String[] a={"FULL WIDTH","FIT","FILL / CROP"};new AlertDialog.Builder(this).setTitle("VIDEO DISPLAY").setItems(a,(d,w)->{videoMode=a[w];q.setText("VIDEO DISPLAY: "+videoMode);}).show();}); r.addView(q);
-        addSettingButton(r,"WI-FI ONLY","Video upload\nVideo playback\nDownloads");
-        addBack(r);
-    }
-
-    private void showTermsPolicies() {
-        LinearLayout r=page(); title(r,"📄 TERMS & POLICIES");
-        addSettingButton(r,"TERMS OF SERVICE","Viyzo terms will be finalized before public release.");
-        addSettingButton(r,"PRIVACY POLICY","Privacy policy and data handling will be finalized before public release.");
-        addSettingButton(r,"COMMUNITY GUIDELINES","Safety, harassment, spam, illegal content and other moderation rules.");
-        addSettingButton(r,"CREATOR POLICY","Original content, rights, monetization and payout rules.");
-        addBack(r);
+        Button back = button("← BACK TO HOME");
+        back.setOnClickListener(v -> showHome());
+        r.addView(back);
     }
 
     private void addSettingButton(LinearLayout r, String label, String info) {
