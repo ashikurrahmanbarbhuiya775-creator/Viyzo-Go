@@ -495,9 +495,9 @@ public class MainActivity extends Activity {
         Button profile = button("👤 PROFILE");
         profile.setOnClickListener(v -> showProfile());
 
-        Button friends = button("👥 FRIENDS");
-        friends.setOnClickListener(v -> showFriends());
-        addRow(c, profile, friends);
+        Button friendsOpen = button("👥 FRIENDS");
+        friendsOpen.setOnClickListener(v -> showFriends());
+        addRow(c, profile, friendsOpen);
         r.addView(c);
 
         LinearLayout d = row();
@@ -899,6 +899,10 @@ public class MainActivity extends Activity {
     }
 
     /* ================= SETTINGS ================= */
+
+    private void toast(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
 
     private void showPostAs() {
         String[] items = pageName.isEmpty() ? new String[]{"Personal ID"} : new String[]{"Personal ID", "Page: " + pageName};
