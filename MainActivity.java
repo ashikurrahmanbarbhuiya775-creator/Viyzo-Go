@@ -2,11 +2,19 @@ package com.viyzo.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.os.Bundle;
+import android.app.DatePickerDialog;
+import android.content.ContentValues;
 import android.content.Intent;
-import android.net.Uri;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.media.MediaPlayer;
+import android.net.Uri;
+import android.os.Bundle;
+import android.provider.Settings;
+import android.speech.tts.TextToSpeech;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -17,20 +25,47 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.VideoView;
 import android.widget.MediaController;
-import android.speech.tts.TextToSpeech;
-import android.app.DatePickerDialog;
-import java.util.Calendar;
-import java.util.Locale;
+
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
+import java.util.Locale;
 
 public class MainActivity extends Activity {
+
+    /* =========================================================
+       VIYZO GO — ALL-IN-ONE PROTOTYPE
+       Keeps the working VideoView select/play flow.
+       ========================================================= */
+
     private VideoView videoView;
+    private TextToSpeech tts;
+    private AccountDb db;
+    private MediaPlayer musicPreview;
+
     private int likeCount = 0;
     private boolean liked = false;
-    private TextToSpeech tts;
-    private Locale selectedVoiceLocale = Locale.ENGLISH;
+    private int commentCount = 0;
+    private int shareCount = 0;
+
+    private String currentName = "Viyzo User";
+    private String currentUsername = "";
+    private String currentDob = "";
+    private String currentPhone = "";
+    private String currentEmail = "";
     private String selectedLanguageName = "English";
+    private Locale selectedVoiceLocale = Locale.ENGLISH;
+
+    private Uri selectedVideoUri;
+    private Uri selectedMusicUri;
+    private Uri selectedPhotoUri;
+    private Uri selectedProfilePhotoUri;
+
+    private static final int REQ_VIDEO = 100;
+    private static final int REQ_MUSIC = 101;
+    private static final int REQ_PHOTO = 102;
+    private static final int REQ_PROFILE_PHOTO = 103;
+    private static final int REQ_STATUS_PHOTO = 104;
 
     private int dp(int v) {
         return (int)(v * getResources().getDisplayMetrics().density + 0.5f);
@@ -41,8 +76,8 @@ public class MainActivity extends Activity {
         t.setText(s);
         t.setTextColor(Color.WHITE);
         t.setTextSize(size);
+        t.setPadding(dp(8), dp(7), dp(8), dp(7));
         t.setGravity(Gravity.CENTER_VERTICAL);
-        t.setPadding(dp(8), dp(6), dp(8), dp(6));
         return t;
     }
 
@@ -57,25 +92,54 @@ public class MainActivity extends Activity {
     private LinearLayout page() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(10), dp(10), dp(10), dp(12));
+        root.setPadding(dp(10), dp(10), dp(10), dp(14));
         root.setBackgroundColor(Color.rgb(18,18,22));
+
         ScrollView scroll = new ScrollView(this);
         scroll.addView(root);
         setContentView(scroll);
         return root;
     }
 
-    @Override protected void onCreate(Bundle state) {
+    private void title(LinearLayout r, String s) {
+        TextView t = text(s, 27);
+        t.setGravity(Gravity.CENTER);
+        t.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        r.addView(t);
+    }
+
+    private void addBack(LinearLayout r) {
+        Button b = button("← BACK");
+        b.setOnClickListener(v -> showHome());
+        r.addView(b);
+    }
+
+    private Button voiceButton(String message) {
+        Button b = button("🔊 LISTEN");
+        b.setOnClickListener(v -> speak(message));
+        return b;
+    }
+
+    @Override
+    protected void onCreate(Bundle state) {
         super.onCreate(state);
+
+        db = new AccountDb();
+
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
                 tts.setLanguage(selectedVoiceLocale);
             }
         });
+
         showLogin();
     }
 
-    @Override protected void onDestroy() {
+    @Override
+    protected void onDestroy() {
+        if (musicPreview != null) {
+            try { musicPreview.release(); } catch (Exception ignored) {}
+        }
         if (tts != null) {
             tts.stop();
             tts.shutdown();
@@ -85,292 +149,273 @@ public class MainActivity extends Activity {
 
     private void speak(String message) {
         if (tts == null || message == null || message.isEmpty()) return;
+
         int result = tts.setLanguage(selectedVoiceLocale);
-        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+        if (result == TextToSpeech.LANG_MISSING_DATA ||
+                result == TextToSpeech.LANG_NOT_SUPPORTED) {
             tts.setLanguage(Locale.ENGLISH);
         }
+
         tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, "VIYZO_GUIDE");
     }
 
-    private Button voiceButton(String message) {
-        Button b = button("🔊 LISTEN");
-        b.setOnClickListener(v -> speak(message));
-        return b;
-    }
+    /* ================= LOGIN ================= */
 
     private void showLogin() {
-        LinearLayout root = page();
-        TextView logo = text("VIYZO GO", 34);
-        logo.setGravity(Gravity.CENTER);
-        logo.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        root.addView(logo);
+        LinearLayout r = page();
 
-        TextView welcome = text("WELCOME TO VIYZO GO", 20);
-        welcome.setGravity(Gravity.CENTER);
-        root.addView(welcome);
+        title(r, "VIYZO GO");
+        r.addView(text("VIDEO • FRIENDS • MESSAGES • CREATOR", 14));
+        r.addView(voiceButton("Welcome to Viyzo Go. Enter your email and password to log in."));
 
         EditText email = new EditText(this);
         email.setHint("Email");
         email.setTextColor(Color.WHITE);
         email.setHintTextColor(Color.GRAY);
         email.setInputType(33);
-        root.addView(email);
+        r.addView(email);
 
         EditText password = new EditText(this);
         password.setHint("Password");
         password.setTextColor(Color.WHITE);
         password.setHintTextColor(Color.GRAY);
         password.setInputType(129);
-        root.addView(password);
+        r.addView(password);
 
         Button login = button("LOGIN");
         login.setOnClickListener(v -> {
             if (email.getText().toString().trim().isEmpty()
                     || password.getText().toString().isEmpty()) {
                 Toast.makeText(this, "Email and password required", Toast.LENGTH_SHORT).show();
+                speak("Email and password are required.");
                 return;
             }
+
+            currentEmail = email.getText().toString().trim();
             showHome();
         });
-        root.addView(login);
+        r.addView(login);
 
         Button create = button("CREATE NEW ACCOUNT");
         create.setOnClickListener(v -> showSignup());
-        root.addView(create);
+        r.addView(create);
 
         Button forgot = button("FORGOT PASSWORD");
         forgot.setOnClickListener(v ->
-                Toast.makeText(this, "Password reset - TEST", Toast.LENGTH_SHORT).show());
-        root.addView(forgot);
+                showSettingInfo("FORGOT PASSWORD",
+                        "Password reset is a prototype screen. Real secure reset needs an online authentication service."));
+        r.addView(forgot);
 
-        TextView note = text("TEST LOGIN — Firebase will be connected later", 12);
-        note.setGravity(Gravity.CENTER);
-        root.addView(note);
+        r.addView(text("Prototype login • Online authentication will be connected later", 12));
     }
 
-    private void showSignup() {
-        LinearLayout root = page();
-        TextView title = text("CREATE VIYZO ACCOUNT", 26);
-        title.setGravity(Gravity.CENTER);
-        root.addView(title);
-        root.addView(voiceButton("Welcome to Viyzo Go. We will create your account step by step."));
+    /* ================= ACCOUNT CREATION ================= */
 
-        TextView typeLabel = text("ACCOUNT TYPE", 16);
-        root.addView(typeLabel);
-        Button accountType = button("👤 PERSONAL ACCOUNT");
-        final String[] chosenType = {"Personal Account"};
-        accountType.setOnClickListener(v -> {
-            String[] types = {"Personal Account", "Creator Account"};
+    private void showSignup() {
+        LinearLayout r = page();
+
+        title(r, "CREATE VIYZO ACCOUNT");
+        r.addView(voiceButton("We will create your Viyzo account step by step."));
+
+        final String[] accountType = {"Personal Account"};
+
+        Button type = button("👤 PERSONAL ACCOUNT");
+        type.setOnClickListener(v -> {
+            String[] options = {"Personal Account", "Creator Account"};
             new AlertDialog.Builder(this)
                     .setTitle("ACCOUNT TYPE")
-                    .setSingleChoiceItems(types, 0, (d, which) -> {
-                        chosenType[0] = types[which];
-                        accountType.setText(which == 0 ? "👤 PERSONAL ACCOUNT" : "🎬 CREATOR ACCOUNT");
-                        speak("Selected " + types[which]);
+                    .setSingleChoiceItems(options, 0, (d, which) -> {
+                        accountType[0] = options[which];
+                        type.setText(which == 0
+                                ? "👤 PERSONAL ACCOUNT"
+                                : "🎬 CREATOR ACCOUNT");
+                        speak("Selected " + options[which]);
                         d.dismiss();
                     }).show();
         });
-        root.addView(accountType);
+        r.addView(type);
 
-        EditText name = new EditText(this);
-        name.setHint("Full name");
-        name.setTextColor(Color.WHITE); name.setHintTextColor(Color.GRAY);
-        root.addView(name);
-        root.addView(voiceButton("Enter your full name."));
-        name.setOnFocusChangeListener((v, hasFocus) -> { if (hasFocus) speak("Enter your full name."); });
+        EditText name = field("Full name");
+        r.addView(name);
+        r.addView(voiceButton("Enter your full name."));
 
-        EditText username = new EditText(this);
-        username.setHint("Username");
-        username.setTextColor(Color.WHITE); username.setHintTextColor(Color.GRAY);
-        root.addView(username);
-        root.addView(voiceButton("Choose a username for your Viyzo profile."));
-        username.setOnFocusChangeListener((v, hasFocus) -> { if (hasFocus) speak("Choose a username for your Viyzo profile."); });
+        EditText username = field("Username");
+        r.addView(username);
+        r.addView(voiceButton("Choose your unique Viyzo username."));
 
-        EditText email = new EditText(this);
-        email.setHint("Email");
-        email.setTextColor(Color.WHITE); email.setHintTextColor(Color.GRAY);
+        EditText email = field("Email");
         email.setInputType(33);
-        root.addView(email);
-        root.addView(voiceButton("Enter your email address."));
+        r.addView(email);
+        r.addView(voiceButton("Enter your email address."));
 
-        EditText phone = new EditText(this);
-        phone.setHint("Mobile number");
-        phone.setTextColor(Color.WHITE); phone.setHintTextColor(Color.GRAY);
+        EditText phone = field("Mobile number");
         phone.setInputType(2);
-        root.addView(phone);
-        root.addView(voiceButton("Enter your mobile number."));
+        r.addView(phone);
+        r.addView(voiceButton("Enter your mobile number."));
 
         TextView dob = text("🎂 Date of birth: Not selected", 16);
-        root.addView(dob);
+        r.addView(dob);
+
         Button dobButton = button("📅 SELECT DATE OF BIRTH");
         dobButton.setOnClickListener(v -> {
             Calendar now = Calendar.getInstance();
-            DatePickerDialog picker = new DatePickerDialog(this, (view, year, month, day) -> {
-                dob.setText("🎂 Date of birth: " + day + "/" + (month + 1) + "/" + year);
-                dob.setTag(year + "-" + (month + 1) + "-" + day);
-                speak("Date of birth selected.");
-            }, 2000, 0, 1);
+
+            DatePickerDialog picker = new DatePickerDialog(
+                    this,
+                    (view, year, month, day) -> {
+                        String value = year + "-" + (month + 1) + "-" + day;
+                        dob.setTag(value);
+                        dob.setText("🎂 Date of birth: " + day + "/" + (month + 1) + "/" + year);
+                        speak("Date of birth selected.");
+                    },
+                    2000, 0, 1
+            );
+
             picker.getDatePicker().setMaxDate(now.getTimeInMillis());
             picker.show();
             speak("Choose your date of birth.");
         });
-        root.addView(dobButton);
+        r.addView(dobButton);
 
-        Button gender = button("⚧ SELECT GENDER (OPTIONAL)");
-        final String[] chosenGender = {"Not specified"};
-        gender.setOnClickListener(v -> {
+        final String[] gender = {"Not specified"};
+        Button genderButton = button("⚧ GENDER (OPTIONAL)");
+        genderButton.setOnClickListener(v -> {
             String[] options = {"Woman", "Man", "Non-binary", "Prefer not to say"};
-            new AlertDialog.Builder(this).setTitle("GENDER")
+            new AlertDialog.Builder(this)
+                    .setTitle("GENDER")
                     .setSingleChoiceItems(options, -1, (d, which) -> {
-                        chosenGender[0] = options[which];
-                        gender.setText("⚧ " + options[which]);
+                        gender[0] = options[which];
+                        genderButton.setText("⚧ " + options[which]);
                         d.dismiss();
                     }).show();
         });
-        root.addView(gender);
+        r.addView(genderButton);
 
-        EditText password = new EditText(this);
-        password.setHint("Password");
-        password.setTextColor(Color.WHITE); password.setHintTextColor(Color.GRAY);
-        password.setInputType(129); root.addView(password);
-        root.addView(voiceButton("Create a password with at least eight characters."));
+        EditText password = field("Password");
+        password.setInputType(129);
+        r.addView(password);
+        r.addView(voiceButton("Create a strong password."));
 
-        EditText confirm = new EditText(this);
-        confirm.setHint("Confirm password");
-        confirm.setTextColor(Color.WHITE); confirm.setHintTextColor(Color.GRAY);
-        confirm.setInputType(129); root.addView(confirm);
-        root.addView(voiceButton("Enter the same password again."));
+        EditText confirm = field("Confirm password");
+        confirm.setInputType(129);
+        r.addView(confirm);
+        r.addView(voiceButton("Enter the same password again."));
 
         Button language = button("🌐 LANGUAGE: " + selectedLanguageName);
         language.setOnClickListener(v -> showLanguagePicker(language));
-        root.addView(language);
-        root.addView(voiceButton("Choose the language you want Viyzo Go to use."));
+        r.addView(language);
 
         Button create = button("CREATE ACCOUNT");
         create.setOnClickListener(v -> {
-            if (name.getText().toString().trim().isEmpty()
-                    || username.getText().toString().trim().isEmpty()
-                    || email.getText().toString().trim().isEmpty()
-                    || phone.getText().toString().trim().isEmpty()
-                    || dob.getTag() == null
-                    || password.getText().toString().isEmpty()
-                    || confirm.getText().toString().isEmpty()) {
-                Toast.makeText(this, "Please complete all required fields", Toast.LENGTH_SHORT).show();
+            String n = name.getText().toString().trim();
+            String u = username.getText().toString().trim();
+            String e = email.getText().toString().trim();
+            String p = phone.getText().toString().trim();
+            String pass = password.getText().toString();
+
+            if (n.isEmpty() || u.isEmpty() || e.isEmpty() || p.isEmpty()
+                    || dob.getTag() == null || pass.isEmpty()) {
+                Toast.makeText(this, "Please complete all required fields.", Toast.LENGTH_SHORT).show();
                 speak("Please complete all required fields.");
                 return;
             }
-            if (!password.getText().toString().equals(confirm.getText().toString())) {
-                Toast.makeText(this, "Passwords do not match", Toast.LENGTH_SHORT).show();
+
+            if (!pass.equals(confirm.getText().toString())) {
+                Toast.makeText(this, "Passwords do not match.", Toast.LENGTH_SHORT).show();
                 speak("The passwords do not match.");
                 return;
             }
-            if (password.getText().toString().length() < 8) {
-                Toast.makeText(this, "Password must be at least 8 characters", Toast.LENGTH_SHORT).show();
-                speak("Your password must be at least eight characters.");
-                return;
+
+            currentName = n;
+            currentUsername = u;
+            currentEmail = e;
+            currentPhone = p;
+            currentDob = String.valueOf(dob.getTag());
+
+            try {
+                SQLiteDatabase database = db.getWritableDatabase();
+                ContentValues values = new ContentValues();
+                values.put("name", n);
+                values.put("username", u);
+                values.put("email", e);
+                values.put("phone", p);
+                values.put("dob", currentDob);
+                values.put("gender", gender[0]);
+                values.put("account_type", accountType[0]);
+                values.put("language", selectedLanguageName);
+                values.put("password", pass); // PROTOTYPE ONLY
+                database.insert("accounts", null, values);
+            } catch (Exception ex) {
+                Toast.makeText(this, "Account saved locally for prototype.", Toast.LENGTH_SHORT).show();
             }
-            if (!isOldEnough((String) dob.getTag(), 13)) {
-                Toast.makeText(this, "You must be at least 13 years old", Toast.LENGTH_SHORT).show();
-                speak("You must be at least thirteen years old to create this test account.");
-                return;
-            }
-            speak("Your Viyzo Go account is ready. Next we will show people you can follow.");
-            showFriendSuggestions(name.getText().toString().trim(), chosenType[0], chosenGender[0]);
+
+            showFriendSuggestions();
         });
-        root.addView(create);
+        r.addView(create);
 
-        Button back = button("BACK TO LOGIN");
+        Button back = button("← BACK TO LOGIN");
         back.setOnClickListener(v -> showLogin());
-        root.addView(back);
+        r.addView(back);
+
+        r.addView(text(
+                "Important: this prototype uses local storage. Password storage must be replaced with secure online authentication before release.",
+                11));
     }
 
-    private boolean isOldEnough(String value, int minimumAge) {
-        try {
-            String[] p = value.split("-");
-            Calendar dob = Calendar.getInstance();
-            dob.set(Integer.parseInt(p[0]), Integer.parseInt(p[1]) - 1, Integer.parseInt(p[2]));
-            Calendar today = Calendar.getInstance();
-            int age = today.get(Calendar.YEAR) - dob.get(Calendar.YEAR);
-            if (today.get(Calendar.DAY_OF_YEAR) < dob.get(Calendar.DAY_OF_YEAR)) age--;
-            return age >= minimumAge;
-        } catch (Exception e) {
-            return false;
-        }
+    private EditText field(String hint) {
+        EditText e = new EditText(this);
+        e.setHint(hint);
+        e.setTextColor(Color.WHITE);
+        e.setHintTextColor(Color.GRAY);
+        e.setPadding(dp(10), dp(5), dp(10), dp(5));
+        return e;
     }
 
-    private void showFriendSuggestions(String name, String accountType, String gender) {
-        LinearLayout root = page();
-        TextView title = text("👥 FIND FRIENDS", 26);
-        title.setGravity(Gravity.CENTER); root.addView(title);
-        root.addView(voiceButton("Your account has been created. Choose people you want to follow, or skip this step."));
-        root.addView(text("Welcome, " + name + "!", 19));
-        root.addView(text("Account: " + accountType, 15));
-        root.addView(text("Gender: " + gender, 14));
-        String[] suggestions = {"Viyzo Creator", "Music Fans", "Travel Videos", "Comedy Videos", "Sports Videos"};
-        for (String item : suggestions) {
-            Button follow = button("➕ FOLLOW  " + item);
+    private void showFriendSuggestions() {
+        LinearLayout r = page();
+        title(r, "👥 FIND PEOPLE");
+        r.addView(text("Choose people you want to follow, or skip this step.", 15));
+
+        String[] people = {
+                "Viyzo Creator", "Music Fans", "Travel Videos",
+                "Comedy Videos", "Sports Videos", "News & Updates"
+        };
+
+        for (String person : people) {
+            Button follow = button("➕ FOLLOW  " + person);
             follow.setOnClickListener(v -> {
-                follow.setText("✓ FOLLOWING  " + item);
-                speak("You are now following " + item + ".");
+                follow.setText("✓ FOLLOWING  " + person);
+                speak("You are now following " + person + ".");
             });
-            root.addView(follow);
+            r.addView(follow);
         }
-        Button skip = button("SKIP FOR NOW");
-        skip.setOnClickListener(v -> showHome()); root.addView(skip);
+
         Button done = button("DONE — GO TO HOME");
-        done.setOnClickListener(v -> showHome()); root.addView(done);
+        done.setOnClickListener(v -> showHome());
+        r.addView(done);
     }
 
-    private void showLanguagePicker(Button target) {
-        Locale[] locales = Locale.getAvailableLocales();
-        ArrayList<String> names = new ArrayList<>();
-        final ArrayList<Locale> usable = new ArrayList<>();
-        for (Locale loc : locales) {
-            String name = loc.getDisplayLanguage(loc);
-            if (name != null && !name.isEmpty() && !names.contains(name)) {
-                names.add(name);
-                usable.add(loc);
-            }
-        }
-        ArrayList<Integer> order = new ArrayList<>();
-        for (int i = 0; i < names.size(); i++) order.add(i);
-        Collections.sort(order, (a, b) -> names.get(a).compareToIgnoreCase(names.get(b)));
-        String[] display = new String[order.size()];
-        Locale[] sortedLocales = new Locale[order.size()];
-        for (int i = 0; i < order.size(); i++) {
-            display[i] = names.get(order.get(i));
-            sortedLocales[i] = usable.get(order.get(i));
-        }
-        new AlertDialog.Builder(this)
-                .setTitle("🌐 CHOOSE LANGUAGE")
-                .setItems(display, (d, which) -> {
-                    selectedLanguageName = display[which];
-                    selectedVoiceLocale = sortedLocales[which];
-                    if (tts != null) tts.setLanguage(selectedVoiceLocale);
-                    target.setText("🌐 LANGUAGE: " + selectedLanguageName);
-                    speak("Language changed to " + selectedLanguageName + ".");
-                })
-                .setNegativeButton("CANCEL", null)
-                .show();
-    }
+    /* ================= HOME ================= */
 
     private void showHome() {
-        LinearLayout root = page();
-        TextView logo = text("VIYZO GO",30);
-        logo.setGravity(Gravity.CENTER);
-        logo.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        root.addView(logo);
+        LinearLayout r = page();
 
-        TextView sub = text("VIDEO • FRIENDS • MESSAGES • CREATOR",13);
+        title(r, "VIYZO GO");
+        TextView sub = text("VIDEO • FRIENDS • MESSAGES • CREATOR", 13);
         sub.setGravity(Gravity.CENTER);
-        root.addView(sub);
+        r.addView(sub);
+
+        TextView feed = text("FOR YOU  •  FOLLOWING  •  TRENDING", 14);
+        feed.setGravity(Gravity.CENTER);
+        r.addView(feed);
 
         videoView = new VideoView(this);
         LinearLayout.LayoutParams vp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(230));
-        vp.setMargins(0,dp(8),0,dp(8));
-        root.addView(videoView,vp);
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(250));
+        vp.setMargins(0, dp(8), 0, dp(8));
+        r.addView(videoView, vp);
 
+        /* KEEPING THE WORKING VIDEO SELECTION FLOW */
         Button select = button("🎬 SELECT / UPLOAD VIDEO");
         select.setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -378,192 +423,518 @@ public class MainActivity extends Activity {
             intent.addCategory(Intent.CATEGORY_OPENABLE);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-            startActivityForResult(intent,100);
+            startActivityForResult(intent, REQ_VIDEO);
         });
-        root.addView(select);
+        r.addView(select);
 
-        LinearLayout r1 = row();
-        Button like = button("❤️ LIKE 0");
+        Button music = button("🎵 ADD MUSIC / SAFE MUSIC LIBRARY");
+        music.setOnClickListener(v -> showMusicLibrary());
+        r.addView(music);
+
+        Button photo = button("🖼️ PHOTO POST");
+        photo.setOnClickListener(v -> selectPhotoPost());
+        r.addView(photo);
+
+        Button status = button("🟢 STATUS 24H");
+        status.setOnClickListener(v -> showStatusCreator());
+        r.addView(status);
+
+        Button mention = button("＠ MENTION / TAG PEOPLE");
+        mention.setOnClickListener(v -> showMention());
+        r.addView(mention);
+
+        LinearLayout a = row();
+        Button like = button("❤️ LIKE " + likeCount);
         like.setOnClickListener(v -> {
             liked = !liked;
-            if(liked) likeCount++; else if(likeCount>0) likeCount--;
+            if (liked) likeCount++;
+            else if (likeCount > 0) likeCount--;
             like.setText((liked ? "❤️ LIKED " : "❤️ LIKE ") + likeCount);
         });
-        Button comment = button("💬 COMMENT");
-        comment.setOnClickListener(v -> showComments());
-        addRow(r1,like,comment); root.addView(r1);
 
-        LinearLayout r2 = row();
-        Button share = button("🔗 SHARE"); share.setOnClickListener(v -> shareVideo());
-        Button msg = button("💬 MESSAGE"); msg.setOnClickListener(v -> showMessages());
-        addRow(r2,share,msg); root.addView(r2);
+        Button comment = button("💬 COMMENT " + commentCount);
+        comment.setOnClickListener(v -> {
+            showComments();
+            commentCount++;
+        });
+        addRow(a, like, comment);
+        r.addView(a);
 
-        LinearLayout r3 = row();
-        Button profile = button("👤 PROFILE"); profile.setOnClickListener(v -> showProfile());
-        Button friends = button("👥 FRIENDS"); friends.setOnClickListener(v -> showFriends());
-        addRow(r3,profile,friends); root.addView(r3);
+        LinearLayout b = row();
+        Button share = button("🔗 SHARE");
+        share.setOnClickListener(v -> {
+            shareCount++;
+            shareVideo();
+        });
 
-        LinearLayout r4 = row();
-        Button notif = button("🔔 NOTIFICATIONS"); notif.setOnClickListener(v -> showNotifications());
-        Button search = button("🔎 SEARCH"); search.setOnClickListener(v -> showSearch());
-        addRow(r4,notif,search); root.addView(r4);
+        Button save = button("🔖 SAVE");
+        save.setOnClickListener(v -> Toast.makeText(this, "Saved - prototype", Toast.LENGTH_SHORT).show());
+        addRow(b, share, save);
+        r.addView(b);
 
-        LinearLayout r5 = row();
-        Button dash = button("📊 MY DASHBOARD"); dash.setOnClickListener(v -> showMyDashboard());
-        Button settings = button("⚙️ SETTINGS"); settings.setOnClickListener(v -> showSettings());
-        addRow(r5,dash,settings); root.addView(r5);
+        LinearLayout c = row();
+        Button profile = button("👤 PROFILE");
+        profile.setOnClickListener(v -> showProfile());
 
-        LinearLayout r6 = row();
-        Button report = button("🚨 REPORT / BLOCK"); report.setOnClickListener(v -> showReport());
-        Button admin = button("🛠️ ADMIN"); admin.setOnClickListener(v -> showAdminDashboard());
-        addRow(r6,report,admin); root.addView(r6);
+        Button friends = button("👥 FRIENDS");
+        friends.setOnClickListener(v -> showFriends());
+        addRow(c, profile, friends);
+        r.addView(c);
+
+        LinearLayout d = row();
+        Button notif = button("🔔 NOTIFICATIONS");
+        notif.setOnClickListener(v -> showNotifications());
+
+        Button search = button("🔎 SEARCH");
+        search.setOnClickListener(v -> showSearch());
+        addRow(d, notif, search);
+        r.addView(d);
+
+        LinearLayout e = row();
+        Button dashboard = button("📊 MY DASHBOARD");
+        dashboard.setOnClickListener(v -> showMyDashboard());
+
+        Button creator = button("💰 CREATOR");
+        creator.setOnClickListener(v -> showCreatorDashboard());
+        addRow(e, dashboard, creator);
+        r.addView(e);
+
+        LinearLayout f = row();
+        Button settings = button("⚙️ SETTINGS");
+        settings.setOnClickListener(v -> showSettings());
+
+        Button messages = button("💬 MESSAGES");
+        messages.setOnClickListener(v -> showMessages());
+        addRow(f, settings, messages);
+        r.addView(f);
+
+        LinearLayout g = row();
+        Button report = button("🚨 REPORT / BLOCK");
+        report.setOnClickListener(v -> showReport());
+
+        Button admin = button("🛠️ ADMIN");
+        admin.setOnClickListener(v -> showAdminDashboard());
+        addRow(g, report, admin);
+        r.addView(g);
+
+        Button account = button("👤 ACCOUNT: " + currentName);
+        account.setOnClickListener(v -> showAccountDetails());
+        r.addView(account);
 
         Button logout = button("🚪 LOGOUT");
-        logout.setOnClickListener(v -> Toast.makeText(this,"Logout test",Toast.LENGTH_SHORT).show());
-        root.addView(logout);
+        logout.setOnClickListener(v -> showLogin());
+        r.addView(logout);
+
+        r.addView(text(
+                "Music rule: Viyzo should only publish tracks that are Viyzo Original, public-domain, properly licensed, or otherwise authorized. Code cannot make copyrighted music automatically license-free.",
+                11));
     }
 
     private LinearLayout row() {
         LinearLayout r = new LinearLayout(this);
         r.setOrientation(LinearLayout.HORIZONTAL);
+        r.setPadding(0, dp(3), 0, dp(3));
         return r;
     }
 
     private void addRow(LinearLayout r, Button a, Button b) {
-        r.addView(a,new LinearLayout.LayoutParams(0,dp(55),1));
-        r.addView(b,new LinearLayout.LayoutParams(0,dp(55),1));
+        r.addView(a, new LinearLayout.LayoutParams(0, dp(58), 1));
+        r.addView(b, new LinearLayout.LayoutParams(0, dp(58), 1));
     }
 
+    /* ================= VIDEO ================= */
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (resultCode != RESULT_OK || data == null) return;
+
+        Uri uri = data.getData();
+        if (uri == null) return;
+
+        try {
+            getContentResolver().takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (Exception ignored) {}
+
+        if (requestCode == REQ_VIDEO) {
+            selectedVideoUri = uri;
+
+            if (videoView != null) {
+                MediaController controller = new MediaController(this);
+                controller.setAnchorView(videoView);
+                videoView.setMediaController(controller);
+                videoView.setVideoURI(selectedVideoUri);
+
+                videoView.setOnPreparedListener(mp -> {
+                    mp.setLooping(true);
+                    videoView.start();
+                });
+
+                videoView.requestFocus();
+            }
+
+            Toast.makeText(this, "Video selected and playing.", Toast.LENGTH_SHORT).show();
+            speak("Your video has been selected.");
+        }
+
+        if (requestCode == REQ_MUSIC) {
+            selectedMusicUri = uri;
+            Toast.makeText(this,
+                    "Audio selected. It is not automatically mixed into the video in this prototype.",
+                    Toast.LENGTH_LONG).show();
+            previewMusic(uri);
+        }
+
+        if (requestCode == REQ_PHOTO || requestCode == REQ_STATUS_PHOTO) {
+            selectedPhotoUri = uri;
+            Toast.makeText(this, "Photo selected.", Toast.LENGTH_SHORT).show();
+        }
+
+        if (requestCode == REQ_PROFILE_PHOTO) {
+            selectedProfilePhotoUri = uri;
+            Toast.makeText(this, "Profile photo selected.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /* ================= MUSIC ================= */
+
+    private void showMusicLibrary() {
+        LinearLayout r = page();
+        title(r, "🎵 VIYZO MUSIC");
+
+        r.addView(text(
+                "SAFE MUSIC SYSTEM: use only Viyzo Original, public-domain, royalty-free with compatible terms, or properly licensed tracks.",
+                13));
+
+        Button original = button("🎶 VIYZO ORIGINAL MUSIC");
+        original.setOnClickListener(v ->
+                showSettingInfo("VIYZO ORIGINAL MUSIC",
+                        "This category is intended for tracks owned or commissioned by Viyzo."));
+        r.addView(original);
+
+        Button publicDomain = button("🏛️ PUBLIC DOMAIN");
+        publicDomain.setOnClickListener(v ->
+                showSettingInfo("PUBLIC DOMAIN",
+                        "Only tracks that are genuinely public domain in the relevant countries should be placed here."));
+        r.addView(publicDomain);
+
+        Button royalty = button("✅ ROYALTY-FREE / LICENSED");
+        royalty.setOnClickListener(v ->
+                showSettingInfo("ROYALTY-FREE / LICENSED",
+                        "Store tracks only when their license permits the intended Viyzo use, including commercial use where applicable."));
+        r.addView(royalty);
+
+        Button choose = button("📂 CHOOSE MY OWN AUDIO");
+        choose.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("audio/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(intent, REQ_MUSIC);
+        });
+        r.addView(choose);
+
+        Button stop = button("⏹️ STOP MUSIC PREVIEW");
+        stop.setOnClickListener(v -> stopMusicPreview());
+        r.addView(stop);
+
+        addBack(r);
+    }
+
+    private void previewMusic(Uri uri) {
+        stopMusicPreview();
+
+        try {
+            musicPreview = MediaPlayer.create(this, uri);
+            if (musicPreview != null) {
+                musicPreview.setOnCompletionListener(mp -> stopMusicPreview());
+                musicPreview.start();
+            }
+        } catch (Exception ex) {
+            Toast.makeText(this, "Cannot preview this audio.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void stopMusicPreview() {
+        if (musicPreview != null) {
+            try {
+                if (musicPreview.isPlaying()) musicPreview.stop();
+            } catch (Exception ignored) {}
+            try { musicPreview.release(); } catch (Exception ignored) {}
+            musicPreview = null;
+        }
+    }
+
+    /* ================= PHOTO / STATUS / MENTION ================= */
+
+    private void selectPhotoPost() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.setType("image/*");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(intent, REQ_PHOTO);
+    }
+
+    private void showStatusCreator() {
+        LinearLayout r = page();
+        title(r, "🟢 STATUS 24 HOURS");
+
+        EditText status = field("Write your status");
+        status.setMinLines(3);
+        r.addView(status);
+
+        Button photo = button("🖼️ ADD STATUS PHOTO");
+        photo.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("image/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivityForResult(intent, REQ_STATUS_PHOTO);
+        });
+        r.addView(photo);
+
+        Button post = button("POST STATUS");
+        post.setOnClickListener(v ->
+                Toast.makeText(this, "Status posted for 24 hours - prototype.", Toast.LENGTH_SHORT).show());
+        r.addView(post);
+
+        addBack(r);
+    }
+
+    private void showMention() {
+        LinearLayout r = page();
+        title(r, "＠ MENTION PEOPLE");
+
+        EditText s = field("@username");
+        r.addView(s);
+
+        Button add = button("ADD MENTION");
+        add.setOnClickListener(v ->
+                Toast.makeText(this, "Mention added: " + s.getText().toString(), Toast.LENGTH_SHORT).show());
+        r.addView(add);
+
+        addBack(r);
+    }
+
+    /* ================= SOCIAL ================= */
+
     private void showComments() {
-        EditText input = new EditText(this);
-        input.setHint("Write a comment");
+        EditText input = field("Write a comment");
+
         new AlertDialog.Builder(this)
                 .setTitle("💬 COMMENTS")
-                .setMessage("Comment • Reply • Like • Delete • Report")
+                .setMessage("Reply • Like • Delete • Report")
                 .setView(input)
-                .setPositiveButton("POST",(d,w)->Toast.makeText(this,"Comment posted - TEST",Toast.LENGTH_SHORT).show())
-                .setNegativeButton("CANCEL",null).show();
+                .setPositiveButton("POST",
+                        (d, w) -> Toast.makeText(this, "Comment posted - prototype", Toast.LENGTH_SHORT).show())
+                .setNegativeButton("CANCEL", null)
+                .show();
     }
 
     private void shareVideo() {
         Intent share = new Intent(Intent.ACTION_SEND);
         share.setType("text/plain");
-        share.putExtra(Intent.EXTRA_TEXT,"Watch this video on Viyzo Go");
-        startActivity(Intent.createChooser(share,"Share Viyzo Video"));
+        share.putExtra(Intent.EXTRA_TEXT, "Watch this video on Viyzo Go");
+        startActivity(Intent.createChooser(share, "Share Viyzo Video"));
     }
 
     private void showMessages() {
-        LinearLayout r=page(); r.addView(text("💬 MESSAGES",28));
-        r.addView(button("➕ NEW MESSAGE")); r.addView(button("USER 1"));
-        r.addView(button("USER 2")); r.addView(button("📩 MESSAGE REQUESTS")); addBack(r);
+        LinearLayout r = page();
+        title(r, "💬 MESSAGES");
+
+        r.addView(button("➕ NEW MESSAGE"));
+        r.addView(button("📩 MESSAGE REQUESTS"));
+        r.addView(button("USER 1"));
+        r.addView(button("USER 2"));
+        r.addView(button("🔐 MESSAGE PRIVACY"));
+
+        addBack(r);
     }
 
     private void showNotifications() {
-        LinearLayout r=page(); r.addView(text("🔔 NOTIFICATIONS",28));
-        r.addView(text("❤️ Someone liked your video",17));
-        r.addView(text("👤 Someone followed you",17));
-        r.addView(text("💬 New comment received",17));
-        r.addView(text("💬 New message received",17)); addBack(r);
+        LinearLayout r = page();
+        title(r, "🔔 NOTIFICATIONS");
+
+        r.addView(text("❤️ Someone liked your video", 17));
+        r.addView(text("👤 Someone followed you", 17));
+        r.addView(text("💬 New comment received", 17));
+        r.addView(text("📩 New message received", 17));
+        r.addView(text("🎬 Creator notification", 17));
+
+        addBack(r);
     }
 
     private void showProfile() {
-        LinearLayout r=page(); r.addView(text("👤 MY PROFILE",28));
-        r.addView(text("Name: Viyzo User",18)); r.addView(text("Followers: 0",18));
-        r.addView(text("Following: 0",18)); r.addView(text("Likes Received: "+likeCount,18));
-        r.addView(button("✏️ EDIT PROFILE")); r.addView(button("🎬 MY VIDEOS")); addBack(r);
+        LinearLayout r = page();
+        title(r, "👤 MY PROFILE");
+
+        r.addView(text("Name: " + currentName, 18));
+        r.addView(text("Username: @" + currentUsername, 18));
+        r.addView(text("Followers: 0", 18));
+        r.addView(text("Following: 0", 18));
+        r.addView(text("Likes Received: " + likeCount, 18));
+
+        Button photo = button("🖼️ CHANGE PROFILE PHOTO");
+        photo.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("image/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivityForResult(intent, REQ_PROFILE_PHOTO);
+        });
+        r.addView(photo);
+
+        r.addView(button("✏️ EDIT PROFILE"));
+        r.addView(button("🎬 MY VIDEOS"));
+        r.addView(button("🟢 MY STATUS"));
+
+        addBack(r);
     }
 
     private void showFriends() {
-        LinearLayout r=page(); r.addView(text("👥 FRIENDS / FOLLOWERS",26));
-        r.addView(button("👥 FRIENDS")); r.addView(button("👤 FOLLOWERS"));
-        r.addView(button("➡️ FOLLOWING")); r.addView(button("📩 FRIEND REQUESTS"));
-        r.addView(button("🚫 BLOCKED USERS")); addBack(r);
+        LinearLayout r = page();
+        title(r, "👥 FRIENDS & FOLLOWERS");
+
+        r.addView(button("👥 FRIENDS"));
+        r.addView(button("👤 FOLLOWERS"));
+        r.addView(button("➡️ FOLLOWING"));
+        r.addView(button("📩 FRIEND REQUESTS"));
+        r.addView(button("🚫 BLOCKED USERS"));
+
+        addBack(r);
     }
 
     private void showSearch() {
-        LinearLayout r=page(); r.addView(text("🔎 SEARCH USERS",26));
-        EditText s=new EditText(this); s.setHint("Search name or username");
-        s.setTextColor(Color.WHITE); s.setHintTextColor(Color.GRAY); r.addView(s);
-        Button b=button("🔎 SEARCH"); b.setOnClickListener(v->Toast.makeText(this,"Search test",Toast.LENGTH_SHORT).show());
-        r.addView(b); addBack(r);
+        LinearLayout r = page();
+        title(r, "🔎 SEARCH");
+
+        EditText s = field("Search name, username, hashtag");
+        r.addView(s);
+
+        Button search = button("🔎 SEARCH");
+        search.setOnClickListener(v ->
+                Toast.makeText(this,
+                        "Search: " + s.getText().toString() + " - prototype",
+                        Toast.LENGTH_SHORT).show());
+        r.addView(search);
+
+        addBack(r);
     }
 
+    /* ================= DASHBOARDS ================= */
+
     private void showMyDashboard() {
-        LinearLayout r=page(); r.addView(text("📊 MY DASHBOARD",28));
-        r.addView(text("Video Views: 0",18)); r.addView(text("Total Likes: "+likeCount,18));
-        r.addView(text("Comments: 0",18)); r.addView(text("Shares: 0",18));
-        r.addView(text("Followers: 0",18)); r.addView(text("Following: 0",18));
-        r.addView(text("Creator Earnings: ₹0",18)); r.addView(button("📈 ANALYTICS")); addBack(r);
+        LinearLayout r = page();
+        title(r, "📊 MY DASHBOARD");
+
+        r.addView(text("Video Views: 0", 18));
+        r.addView(text("Total Likes: " + likeCount, 18));
+        r.addView(text("Comments: " + commentCount, 18));
+        r.addView(text("Shares: " + shareCount, 18));
+        r.addView(text("Followers: 0", 18));
+        r.addView(text("Following: 0", 18));
+        r.addView(text("Creator Earnings: ₹0", 18));
+        r.addView(text("Monetization: Not connected", 18));
+
+        addBack(r);
     }
+
+    private void showCreatorDashboard() {
+        LinearLayout r = page();
+        title(r, "💰 CREATOR DASHBOARD");
+
+        r.addView(text("Creator status: Prototype", 17));
+        r.addView(text("Views: 0", 17));
+        r.addView(text("Watch time: 0", 17));
+        r.addView(text("Followers: 0", 17));
+        r.addView(text("Estimated earnings: ₹0", 17));
+        r.addView(text("Payout account: Not connected", 17));
+
+        r.addView(button("📈 ANALYTICS"));
+        r.addView(button("💵 MONETIZATION"));
+        r.addView(button("🏦 PAYOUT SETTINGS"));
+
+        addBack(r);
+    }
+
+    private void showAdminDashboard() {
+        LinearLayout r = page();
+        title(r, "🛠️ ADMIN DASHBOARD");
+
+        r.addView(text("User management", 17));
+        r.addView(text("Video moderation", 17));
+        r.addView(text("Reports & disputes", 17));
+        r.addView(text("Creator monetization", 17));
+        r.addView(text("Music rights / catalog management", 17));
+        r.addView(text("Announcements", 17));
+
+        r.addView(button("👥 MANAGE USERS"));
+        r.addView(button("🎬 MODERATE VIDEOS"));
+        r.addView(button("🚨 REVIEW REPORTS"));
+
+        addBack(r);
+    }
+
+    /* ================= SETTINGS ================= */
 
     private void showSettings() {
         LinearLayout r = page();
-        r.addView(text("⚙️ SETTINGS & PRIVACY",26));
+        title(r, "⚙️ SETTINGS & PRIVACY");
 
-        Button account = button("🔐 ACCOUNT & PASSWORD");
-        account.setOnClickListener(v -> showSettingInfo("ACCOUNT & PASSWORD",
-                "Change password\nChange email\nEdit account name\nLogin activity"));
-        r.addView(account);
+        addSettingButton(r, "🔐 ACCOUNT & PASSWORD",
+                "Change password\nChange email\nEdit account name\nLogin activity");
 
-        Button privacy = button("🔒 PRIVACY");
-        privacy.setOnClickListener(v -> showSettingInfo("PRIVACY",
-                "Profile privacy\nWho can message you\nPrivate account\nActivity visibility"));
-        r.addView(privacy);
+        addSettingButton(r, "🔒 PRIVACY",
+                "Profile privacy\nWho can message you\nPrivate account\nActivity visibility");
 
-        Button security = button("🛡️ SECURITY");
-        security.setOnClickListener(v -> showSettingInfo("SECURITY",
-                "Login alerts\nTwo-step verification\nActive sessions\nSecurity checkup"));
-        r.addView(security);
+        addSettingButton(r, "🛡️ SECURITY",
+                "Login alerts\nTwo-step verification\nActive sessions\nSecurity checkup");
 
-        Button notifications = button("🔔 NOTIFICATION SETTINGS");
-        notifications.setOnClickListener(v -> showSettingInfo("NOTIFICATION SETTINGS",
-                "Likes\nComments\nFollowers\nMessages\nCreator notifications"));
-        r.addView(notifications);
+        addSettingButton(r, "🔔 NOTIFICATION SETTINGS",
+                "Likes\nComments\nFollowers\nMessages\nCreator notifications");
 
-        Button messages = button("💬 MESSAGE SETTINGS");
-        messages.setOnClickListener(v -> showSettingInfo("MESSAGE SETTINGS",
-                "Message requests\nWho can message you\nRead receipts\nBlocked messages"));
-        r.addView(messages);
+        addSettingButton(r, "💬 MESSAGE SETTINGS",
+                "Message requests\nWho can message you\nRead receipts");
 
-        Button followers = button("👥 FOLLOWERS & FOLLOWING");
-        followers.setOnClickListener(v -> showSettingInfo("FOLLOWERS & FOLLOWING",
-                "Manage followers\nFollowing list\nFriend requests\nRemove follower"));
-        r.addView(followers);
+        addSettingButton(r, "👥 FOLLOWERS & FOLLOWING",
+                "Manage followers\nFollowing list\nFriend requests\nRemove follower");
 
-        Button blocking = button("🚫 BLOCKING");
-        blocking.setOnClickListener(v -> showSettingInfo("BLOCKING",
-                "Blocked users\nBlocked messages\nBlocked videos"));
-        r.addView(blocking);
+        addSettingButton(r, "🚫 BLOCKING",
+                "Blocked users\nBlocked messages\nBlocked videos");
 
-        Button content = button("🎬 CONTENT PREFERENCES");
-        content.setOnClickListener(v -> showSettingInfo("CONTENT PREFERENCES",
-                "Recommendations\nSensitive content\nTopics\nNot interested"));
-        r.addView(content);
+        addSettingButton(r, "🎬 CONTENT PREFERENCES",
+                "Recommendations\nSensitive content\nTopics\nNot interested");
 
-        Button language = button("🌐 LANGUAGE");
-        language.setOnClickListener(v -> showLanguageDialog());
+        Button language = button("🌐 LANGUAGE: " + selectedLanguageName);
+        language.setOnClickListener(v -> showLanguagePicker(language));
         r.addView(language);
 
-        Button data = button("📱 DATA USAGE");
-        data.setOnClickListener(v -> showSettingInfo("DATA USAGE",
-                "Data saver\nVideo quality\nAutoplay\nWi-Fi only"));
-        r.addView(data);
+        addSettingButton(r, "📱 DATA USAGE",
+                "Data saver\nVideo quality\nAutoplay\nWi-Fi only");
 
-        Button help = button("❓ HELP & SUPPORT");
-        help.setOnClickListener(v -> showSettingInfo("HELP & SUPPORT",
-                "Help Center\nReport a problem\nContact support\nAccount help"));
-        r.addView(help);
+        addSettingButton(r, "❓ HELP & SUPPORT",
+                "Help Center\nReport a problem\nContact support\nAccount help");
 
-        Button terms = button("📄 TERMS & POLICIES");
-        terms.setOnClickListener(v -> showSettingInfo("TERMS & POLICIES",
-                "Terms\nPrivacy Policy\nCommunity Guidelines\nCreator Policy"));
-        r.addView(terms);
+        addSettingButton(r, "📄 TERMS & POLICIES",
+                "Terms\nPrivacy Policy\nCommunity Guidelines\nCreator Policy");
 
         Button delete = button("⚠️ DELETE ACCOUNT");
         delete.setOnClickListener(v -> showDeleteAccountDialog());
         r.addView(delete);
 
-        addBack(r);
+        Button back = button("← BACK TO HOME");
+        back.setOnClickListener(v -> showHome());
+        r.addView(back);
+    }
+
+    private void addSettingButton(LinearLayout r, String label, String info) {
+        Button b = button(label);
+        b.setOnClickListener(v -> showSettingInfo(label, info));
+        r.addView(b);
     }
 
     private void showSettingInfo(String title, String message) {
@@ -574,64 +945,128 @@ public class MainActivity extends Activity {
                 .show();
     }
 
-    private void showLanguageDialog() {
-        String[] languages = {"English", "Hindi", "বাংলা", "Urdu"};
+    private void showDeleteAccountDialog() {
         new AlertDialog.Builder(this)
-                .setTitle("🌐 LANGUAGE")
-                .setSingleChoiceItems(languages, 0, (dialog, which) -> {
-                    Toast.makeText(this, "Language selected: " + languages[which], Toast.LENGTH_SHORT).show();
-                    dialog.dismiss();
+                .setTitle("⚠️ DELETE ACCOUNT")
+                .setMessage("This prototype can remove the local account. A real online account deletion flow must delete server data according to the final privacy policy.")
+                .setPositiveButton("DELETE LOCAL TEST", (d, w) -> {
+                    try {
+                        db.getWritableDatabase().delete("accounts", null, null);
+                    } catch (Exception ignored) {}
+                    Toast.makeText(this, "Local test account deleted.", Toast.LENGTH_SHORT).show();
+                    showLogin();
                 })
                 .setNegativeButton("CANCEL", null)
                 .show();
     }
 
-    private void showDeleteAccountDialog() {
+    /* ================= LANGUAGE + VOICE ================= */
+
+    private void showLanguagePicker(Button target) {
+        Locale[] locales = Locale.getAvailableLocales();
+
+        ArrayList<String> names = new ArrayList<>();
+        final ArrayList<Locale> usable = new ArrayList<>();
+
+        for (Locale loc : locales) {
+            String name = loc.getDisplayLanguage(loc);
+            if (name != null && !name.isEmpty() && !names.contains(name)) {
+                names.add(name);
+                usable.add(loc);
+            }
+        }
+
+        ArrayList<Integer> order = new ArrayList<>();
+        for (int i = 0; i < names.size(); i++) order.add(i);
+
+        Collections.sort(order, (a, b) ->
+                names.get(a).compareToIgnoreCase(names.get(b)));
+
+        String[] display = new String[order.size()];
+        Locale[] sortedLocales = new Locale[order.size()];
+
+        for (int i = 0; i < order.size(); i++) {
+            display[i] = names.get(order.get(i));
+            sortedLocales[i] = usable.get(order.get(i));
+        }
+
         new AlertDialog.Builder(this)
-                .setTitle("⚠️ DELETE ACCOUNT")
-                .setMessage("This is a test screen. Real account deletion will be connected later.")
-                .setPositiveButton("DELETE TEST", (d, w) ->
-                        Toast.makeText(this, "Delete account - TEST", Toast.LENGTH_SHORT).show())
+                .setTitle("🌐 ALL AVAILABLE LANGUAGES")
+                .setItems(display, (d, which) -> {
+                    selectedLanguageName = display[which];
+                    selectedVoiceLocale = sortedLocales[which];
+
+                    if (tts != null) tts.setLanguage(selectedVoiceLocale);
+
+                    target.setText("🌐 LANGUAGE: " + selectedLanguageName);
+                    speak("Language changed to " + selectedLanguageName + ".");
+                })
                 .setNegativeButton("CANCEL", null)
                 .show();
     }
 
+    /* ================= ACCOUNT ================= */
+
+    private void showAccountDetails() {
+        LinearLayout r = page();
+        title(r, "👤 ACCOUNT");
+
+        r.addView(text("Name: " + currentName, 17));
+        r.addView(text("Username: @" + currentUsername, 17));
+        r.addView(text("Email: " + currentEmail, 17));
+        r.addView(text("Mobile: " + currentPhone, 17));
+        r.addView(text("Date of birth: " + currentDob, 17));
+        r.addView(text("Language: " + selectedLanguageName, 17));
+
+        addBack(r);
+    }
+
+    /* ================= REPORT / BLOCK ================= */
+
     private void showReport() {
-        String[] options={"Report User","Report Video","Spam","Harassment","Copyright","Block User"};
-        new AlertDialog.Builder(this).setTitle("🚨 REPORT / BLOCK").setItems(options,
-                (d,w)->Toast.makeText(this,options[w],Toast.LENGTH_SHORT).show())
-                .setNegativeButton("CANCEL",null).show();
+        String[] options = {
+                "Report User", "Report Video", "Spam",
+                "Harassment", "Copyright", "Block User"
+        };
+
+        new AlertDialog.Builder(this)
+                .setTitle("🚨 REPORT / BLOCK")
+                .setItems(options,
+                        (d, w) -> Toast.makeText(this,
+                                options[w] + " - submitted as prototype",
+                                Toast.LENGTH_SHORT).show())
+                .setNegativeButton("CANCEL", null)
+                .show();
     }
 
-    private void showAdminDashboard() {
-        LinearLayout r=page(); r.addView(text("🛠️ ADMIN DASHBOARD",28));
-        r.addView(text("Users: 0",18)); r.addView(text("Videos: 0",18));
-        r.addView(text("Reports: 0",18)); r.addView(text("Active Users: 0",18));
-        r.addView(button("👥 MANAGE USERS")); r.addView(button("🎬 MANAGE VIDEOS"));
-        r.addView(button("🚨 MANAGE REPORTS")); r.addView(button("⚖️ DISPUTES"));
-        r.addView(button("💬 MESSAGE MODERATION")); r.addView(button("⭐ CREATOR MANAGEMENT"));
-        r.addView(button("💰 CREATOR EARNINGS")); r.addView(button("📢 ADS MANAGEMENT"));
-        r.addView(button("📈 APP ANALYTICS")); r.addView(button("⚙️ APP SETTINGS")); addBack(r);
-    }
+    /* ================= LOCAL DATABASE ================= */
 
-    private void addBack(LinearLayout r) {
-        Button b=button("← BACK TO HOME"); b.setOnClickListener(v->showHome()); r.addView(b);
-    }
+    private class AccountDb extends SQLiteOpenHelper {
 
-    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
-        super.onActivityResult(requestCode,resultCode,data);
-        if(requestCode==100 && resultCode==RESULT_OK && data!=null) {
-            Uri videoUri=data.getData();
-            if(videoUri!=null) {
-                try { getContentResolver().takePersistableUriPermission(videoUri,Intent.FLAG_GRANT_READ_URI_PERMISSION); }
-                catch(Exception ignored) {}
-                MediaController controller=new MediaController(this);
-                controller.setAnchorView(videoView);
-                videoView.setMediaController(controller);
-                videoView.setVideoURI(videoUri);
-                videoView.setOnPreparedListener(mp->{ mp.setLooping(true); videoView.start(); });
-                videoView.requestFocus();
-            }
+        AccountDb() {
+            super(MainActivity.this, "viyzo_go.db", null, 1);
+        }
+
+        @Override
+        public void onCreate(SQLiteDatabase db) {
+            db.execSQL(
+                    "CREATE TABLE accounts (" +
+                            "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                            "name TEXT," +
+                            "username TEXT UNIQUE," +
+                            "email TEXT UNIQUE," +
+                            "phone TEXT," +
+                            "dob TEXT," +
+                            "gender TEXT," +
+                            "account_type TEXT," +
+                            "language TEXT," +
+                            "password TEXT)");
+        }
+
+        @Override
+        public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+            db.execSQL("DROP TABLE IF EXISTS accounts");
+            onCreate(db);
         }
     }
 }
