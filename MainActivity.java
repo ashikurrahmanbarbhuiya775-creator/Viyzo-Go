@@ -26,10 +26,17 @@ import android.widget.Toast;
 import android.widget.VideoView;
 import android.widget.MediaController;
 
+import com.google.firebase.auth.AuthResult;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FirebaseFirestore;
+
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 public class MainActivity extends Activity {
     private LinearLayout fixedBottomNav;
@@ -43,6 +50,10 @@ public class MainActivity extends Activity {
     private TextToSpeech tts;
     private AccountDb db;
     private MediaPlayer musicPreview;
+
+    // Firebase Authentication + Firestore
+    private FirebaseAuth firebaseAuth;
+    private FirebaseFirestore firestore;
 
     private int likeCount = 0;
     private boolean liked = false;
@@ -139,6 +150,10 @@ public class MainActivity extends Activity {
 
         db = new AccountDb();
 
+        // Firebase is already configured in the Android build.
+        firebaseAuth = FirebaseAuth.getInstance();
+        firestore = FirebaseFirestore.getInstance();
+
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
                 tts.setLanguage(selectedVoiceLocale);
@@ -198,15 +213,63 @@ public class MainActivity extends Activity {
 
         Button login = button("LOGIN");
         login.setOnClickListener(v -> {
-            if (email.getText().toString().trim().isEmpty()
-                    || password.getText().toString().isEmpty()) {
+            String loginEmail = email.getText().toString().trim();
+            String loginPassword = password.getText().toString();
+
+            if (loginEmail.isEmpty() || loginPassword.isEmpty()) {
                 Toast.makeText(this, "Email and password required", Toast.LENGTH_SHORT).show();
                 speak("Email and password are required.");
                 return;
             }
 
-            currentEmail = email.getText().toString().trim();
-            showHome();
+            login.setEnabled(false);
+            login.setText("LOGGING IN...");
+
+            firebaseAuth.signInWithEmailAndPassword(loginEmail, loginPassword)
+                    .addOnCompleteListener(this, task -> {
+                        login.setEnabled(true);
+                        login.setText("LOGIN");
+
+                        if (task.isSuccessful()) {
+                            FirebaseUser user = firebaseAuth.getCurrentUser();
+                            currentEmail = loginEmail;
+
+                            if (user != null) {
+                                firestore.collection("users")
+                                        .document(user.getUid())
+                                        .get()
+                                        .addOnSuccessListener(doc -> {
+                                            if (doc.exists()) {
+                                                String savedName = doc.getString("name");
+                                                String savedUsername = doc.getString("username");
+                                                if (savedName != null && !savedName.isEmpty()) {
+                                                    currentName = savedName;
+                                                }
+                                                if (savedUsername != null) {
+                                                    currentUsername = savedUsername;
+                                                }
+                                            }
+                                            Toast.makeText(this, "Login successful.", Toast.LENGTH_SHORT).show();
+                                            speak("Login successful. Welcome back to Viyzo Go.");
+                                            showHome();
+                                        })
+                                        .addOnFailureListener(e -> {
+                                            Toast.makeText(this, "Login successful.", Toast.LENGTH_SHORT).show();
+                                            speak("Login successful.");
+                                            showHome();
+                                        });
+                            } else {
+                                Toast.makeText(this, "Login successful.", Toast.LENGTH_SHORT).show();
+                                showHome();
+                            }
+                        } else {
+                            String message = task.getException() != null
+                                    ? task.getException().getMessage()
+                                    : "Login failed.";
+                            Toast.makeText(this, "Login failed: " + message, Toast.LENGTH_LONG).show();
+                            speak("Login failed. Please check your email and password.");
+                        }
+                    });
         });
         r.addView(login);
 
@@ -215,12 +278,32 @@ public class MainActivity extends Activity {
         r.addView(create);
 
         Button forgot = button("FORGOT PASSWORD");
-        forgot.setOnClickListener(v ->
-                showSettingInfo("FORGOT PASSWORD",
-                        "Password reset is a prototype screen. Real secure reset needs an online authentication service."));
+        forgot.setOnClickListener(v -> {
+            String resetEmail = email.getText().toString().trim();
+
+            if (resetEmail.isEmpty()) {
+                Toast.makeText(this, "Enter your email first.", Toast.LENGTH_SHORT).show();
+                speak("Enter your email address first.");
+                return;
+            }
+
+            firebaseAuth.sendPasswordResetEmail(resetEmail)
+                    .addOnCompleteListener(this, task -> {
+                        if (task.isSuccessful()) {
+                            Toast.makeText(this, "Password reset email sent.", Toast.LENGTH_LONG).show();
+                            speak("Password reset email sent.");
+                        } else {
+                            String message = task.getException() != null
+                                    ? task.getException().getMessage()
+                                    : "Could not send reset email.";
+                            Toast.makeText(this, "Reset failed: " + message, Toast.LENGTH_LONG).show();
+                            speak("Password reset could not be sent.");
+                        }
+                    });
+        });
         r.addView(forgot);
 
-        r.addView(text("Prototype login • Online authentication will be connected later", 12));
+        r.addView(text("Firebase online login • Email/password authentication", 12));
     }
 
     /* ================= ACCOUNT CREATION ================= */
@@ -346,24 +429,66 @@ public class MainActivity extends Activity {
             currentPhone = p;
             currentDob = String.valueOf(dob.getTag());
 
-            try {
-                SQLiteDatabase database = db.getWritableDatabase();
-                ContentValues values = new ContentValues();
-                values.put("name", n);
-                values.put("username", u);
-                values.put("email", e);
-                values.put("phone", p);
-                values.put("dob", currentDob);
-                values.put("gender", gender[0]);
-                values.put("account_type", accountType[0]);
-                values.put("language", selectedLanguageName);
-                values.put("password", pass); // PROTOTYPE ONLY
-                database.insert("accounts", null, values);
-            } catch (Exception ex) {
-                Toast.makeText(this, "Account saved locally for prototype.", Toast.LENGTH_SHORT).show();
-            }
+            create.setEnabled(false);
+            create.setText("CREATING ACCOUNT...");
 
-            showFriendSuggestions();
+            // Firebase Authentication securely stores the password.
+            // We intentionally do NOT save the password in the local SQLite database.
+            firebaseAuth.createUserWithEmailAndPassword(e, pass)
+                    .addOnCompleteListener(this, task -> {
+                        create.setEnabled(true);
+                        create.setText("CREATE ACCOUNT");
+
+                        if (!task.isSuccessful()) {
+                            String message = task.getException() != null
+                                    ? task.getException().getMessage()
+                                    : "Account creation failed.";
+                            Toast.makeText(this,
+                                    "Account creation failed: " + message,
+                                    Toast.LENGTH_LONG).show();
+                            speak("Account creation failed. Please check your details.");
+                            return;
+                        }
+
+                        FirebaseUser user = firebaseAuth.getCurrentUser();
+                        if (user == null) {
+                            Toast.makeText(this, "Account created, but user session was not found.", Toast.LENGTH_LONG).show();
+                            return;
+                        }
+
+                        Map<String, Object> profile = new HashMap<>();
+                        profile.put("uid", user.getUid());
+                        profile.put("name", n);
+                        profile.put("username", u);
+                        profile.put("email", e);
+                        profile.put("phone", p);
+                        profile.put("dob", currentDob);
+                        profile.put("gender", gender[0]);
+                        profile.put("accountType", accountType[0]);
+                        profile.put("language", selectedLanguageName);
+                        profile.put("followersCount", 0);
+                        profile.put("followingCount", 0);
+                        profile.put("likesReceived", 0);
+                        profile.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
+
+                        firestore.collection("users")
+                                .document(user.getUid())
+                                .set(profile)
+                                .addOnSuccessListener(unused -> {
+                                    Toast.makeText(this,
+                                            "Viyzo account created online.",
+                                            Toast.LENGTH_SHORT).show();
+                                    speak("Your Viyzo account has been created.");
+                                    showFriendSuggestions();
+                                })
+                                .addOnFailureListener(e2 -> {
+                                    Toast.makeText(this,
+                                            "Account created, but profile sync failed: " + e2.getMessage(),
+                                            Toast.LENGTH_LONG).show();
+                                    speak("Account created. Profile sync needs another attempt.");
+                                    showFriendSuggestions();
+                                });
+                    });
         });
         r.addView(create);
 
@@ -372,7 +497,7 @@ public class MainActivity extends Activity {
         r.addView(back);
 
         r.addView(text(
-                "Important: this prototype uses local storage. Password storage must be replaced with secure online authentication before release.",
+                "Firebase stores the account password securely. Profile details are saved in Firestore.",
                 11));
     }
 
@@ -681,7 +806,23 @@ public class MainActivity extends Activity {
     private void showQuickMenu() {
         String[] items = {"Profile", "Friends", "Pages", "Messages", "Notifications", "Dashboard", "Settings & Privacy", "Help & Support", "Logout"};
         new AlertDialog.Builder(this).setTitle("☰ VIYZO MENU").setItems(items, (d,w) -> {
-            switch(w){case 0:showProfile();break;case 1:showFriends();break;case 2:showPageManager();break;case 3:showMessages();break;case 4:showNotifications();break;case 5:showMyDashboard();break;case 6:showSettings();break;case 7:showHelpSupport();break;default:showLogin();}
+            switch(w){
+                case 0:showProfile();break;
+                case 1:showFriends();break;
+                case 2:showPageManager();break;
+                case 3:showMessages();break;
+                case 4:showNotifications();break;
+                case 5:showMyDashboard();break;
+                case 6:showSettings();break;
+                case 7:showHelpSupport();break;
+                default:
+                    firebaseAuth.signOut();
+                    currentName = "Viyzo User";
+                    currentUsername = "";
+                    currentEmail = "";
+                    showLogin();
+                    break;
+            }
         }).show();
     }
 
@@ -1227,7 +1368,10 @@ public class MainActivity extends Activity {
                     try {
                         db.getWritableDatabase().delete("accounts", null, null);
                     } catch (Exception ignored) {}
-                    Toast.makeText(this, "Local test account deleted.", Toast.LENGTH_SHORT).show();
+                    if (firebaseAuth.getCurrentUser() != null) {
+                        firebaseAuth.signOut();
+                    }
+                    Toast.makeText(this, "Local test data deleted.", Toast.LENGTH_SHORT).show();
                     showLogin();
                 })
                 .setNegativeButton("CANCEL", null)
