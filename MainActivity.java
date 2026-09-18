@@ -569,12 +569,12 @@ public class MainActivity extends Activity {
         nav.setBackgroundColor(Color.rgb(10, 10, 14));
         nav.setPadding(dp(2), dp(2), dp(2), dp(2));
 
-        Button home = navButton("⌂\\nHome");
-        Button reels = navButton("▶\\nReels");
-        Button fr = navButton("👥\\nFriends");
-        Button pages = navButton("▣\\nPages");
-        Button alerts = navButton("🔔\\nAlerts");
-        Button profile = navButton("👤\\nProfile");
+        Button home = navButton("⌂\nHome");
+        Button reels = navButton("▶\nReels");
+        Button fr = navButton("👥\nFriends");
+        Button pages = navButton("▣\nPages");
+        Button alerts = navButton("🔔\nAlerts");
+        Button profile = navButton("👤\nProfile");
 
         reels.setOnClickListener(v -> showReels());
         fr.setOnClickListener(v -> showFriends());
