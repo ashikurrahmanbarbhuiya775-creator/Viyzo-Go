@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -29,18 +28,17 @@ jobs:
       - name: Create Android project files
         shell: bash
         run: |
-
           mkdir -p app/src/main/java/com/viyzo/app
           mkdir -p app/src/main/res/values
 
           cp MainActivity.java app/src/main/java/com/viyzo/app/MainActivity.java
 
-          if [ -f google-services.json ]; then
-            cp google-services.json app/google-services.json
-          elif [ -f "google-services json" ]; then
-            cp "google-services json" app/google-services.json
+          if [ -f "google-services.json" ]; then
+            cp "google-services.json" app/google-services.json
+          elif [ -f "google-services .json" ]; then
+            cp "google-services .json" app/google-services.json
           else
-            echo "ERROR: google-services.json not found"
+            echo "ERROR: google-services file not found"
             exit 1
           fi
 
@@ -93,7 +91,6 @@ jobs:
 
           dependencies {
               implementation platform('com.google.firebase:firebase-bom:34.19.0')
-
               implementation 'com.google.firebase:firebase-auth'
               implementation 'com.google.firebase:firebase-firestore'
           }
@@ -101,7 +98,6 @@ jobs:
 
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
               <uses-permission android:name="android.permission.INTERNET" />
@@ -125,20 +121,16 @@ jobs:
                   </activity>
 
               </application>
-
           </manifest>
           EOF
 
           cat > app/src/main/res/values/styles.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-
           <resources>
-
               <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
                   <item name="android:fontFamily">sans</item>
                   <item name="android:colorAccent">#FFFFFF</item>
               </style>
-
           </resources>
           EOF
 
