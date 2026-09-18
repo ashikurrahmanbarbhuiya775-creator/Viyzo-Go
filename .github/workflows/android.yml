@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -28,6 +29,7 @@ jobs:
       - name: Create Android project files
         shell: bash
         run: |
+
           mkdir -p app/src/main/java/com/viyzo/app
           mkdir -p app/src/main/res/values
 
@@ -35,8 +37,10 @@ jobs:
 
           if [ -f google-services.json ]; then
             cp google-services.json app/google-services.json
+          elif [ -f "google-services json" ]; then
+            cp "google-services json" app/google-services.json
           else
-            echo "google-services.json not found"
+            echo "ERROR: google-services.json not found"
             exit 1
           fi
 
@@ -64,7 +68,7 @@ jobs:
           cat > build.gradle <<'EOF'
           plugins {
               id 'com.android.application' version '8.7.3' apply false
-              id 'com.google.gms.google-services' version '4.4.2' apply false
+              id 'com.google.gms.google-services' version '4.5.0' apply false
           }
           EOF
 
@@ -76,19 +80,20 @@ jobs:
 
           android {
               namespace 'com.viyzo.app'
-              compileSdk 36
+              compileSdk 35
 
               defaultConfig {
                   applicationId 'com.viyzo.app'
                   minSdk 23
-                  targetSdk 36
+                  targetSdk 35
                   versionCode 2
                   versionName '1.1'
               }
           }
 
           dependencies {
-              implementation platform('com.google.firebase:firebase-bom:34.2.0')
+              implementation platform('com.google.firebase:firebase-bom:34.19.0')
+
               implementation 'com.google.firebase:firebase-auth'
               implementation 'com.google.firebase:firebase-firestore'
           }
@@ -96,7 +101,10 @@ jobs:
 
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
+
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
 
               <application
                   android:theme="@style/AppTheme"
@@ -123,11 +131,14 @@ jobs:
 
           cat > app/src/main/res/values/styles.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
+
           <resources>
+
               <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
                   <item name="android:fontFamily">sans</item>
                   <item name="android:colorAccent">#FFFFFF</item>
               </style>
+
           </resources>
           EOF
 
