@@ -141,7 +141,7 @@ jobs:
           cat > app/src/main/res/values/styles.xml <<'STYLES'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
-              <style name="AppTheme" parent="Theme.Material.NoActionBar">
+              <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
                   <item name="android:fontFamily">sans</item>
                   <item name="android:colorAccent">#FFFFFF</item>
               </style>
