@@ -1,4 +1,4 @@
-name: Build Viyzo Go APK
+name: Build Viyzo Go FULL FUTURE
 
 on:
   push:
@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -29,7 +28,6 @@ jobs:
       - name: Create Android project files
         shell: bash
         run: |
-
           mkdir -p app/src/main/java/com/viyzo/app
           mkdir -p app/src/main/res/values
 
@@ -44,13 +42,13 @@ jobs:
             exit 1
           fi
 
-          cat > gradle.properties <<'EOF'
+          cat > gradle.properties <<'PROPS'
           android.useAndroidX=true
           android.enableJetifier=true
           org.gradle.jvmargs=-Xmx2048m
-          EOF
+          PROPS
 
-          cat > settings.gradle <<'EOF'
+          cat > settings.gradle <<'SETTINGS'
           pluginManagement {
               repositories {
                   google()
@@ -69,16 +67,16 @@ jobs:
 
           rootProject.name = "Viyzo-Go"
           include(":app")
-          EOF
+          SETTINGS
 
-          cat > build.gradle <<'EOF'
+          cat > build.gradle <<'ROOT'
           plugins {
               id 'com.android.application' version '8.7.3' apply false
               id 'com.google.gms.google-services' version '4.5.0' apply false
           }
-          EOF
+          ROOT
 
-          cat > app/build.gradle <<'EOF'
+          cat > app/build.gradle <<'APP'
           plugins {
               id 'com.android.application'
               id 'com.google.gms.google-services'
@@ -92,21 +90,25 @@ jobs:
                   applicationId 'com.viyzo.app'
                   minSdk 23
                   targetSdk 35
-                  versionCode 2
-                  versionName '1.1'
+                  versionCode 3
+                  versionName '1.2'
               }
           }
 
           dependencies {
+              // Firebase libraries are version-managed by the Firebase BoM.
               implementation platform('com.google.firebase:firebase-bom:34.19.0')
               implementation 'com.google.firebase:firebase-auth'
               implementation 'com.google.firebase:firebase-firestore'
+              implementation 'com.google.firebase:firebase-storage'
+
+              // Google Mobile Ads SDK for the new AdMob code.
+              implementation 'com.google.android.gms:play-services-ads:25.4.0'
           }
-          EOF
+          APP
 
-          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          cat > app/src/main/AndroidManifest.xml <<'MANIFEST'
           <?xml version="1.0" encoding="utf-8"?>
-
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
               <uses-permission android:name="android.permission.INTERNET" />
@@ -117,35 +119,34 @@ jobs:
                   android:allowBackup="true"
                   android:supportsRtl="true">
 
+                  <!-- Google test AdMob App ID for development. Replace before release. -->
+                  <meta-data
+                      android:name="com.google.android.gms.ads.APPLICATION_ID"
+                      android:value="ca-app-pub-3940256099942544~3347511713" />
+
                   <activity
                       android:name=".MainActivity"
                       android:screenOrientation="portrait"
                       android:exported="true">
-
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
-
                   </activity>
 
               </application>
-
           </manifest>
-          EOF
+          MANIFEST
 
-          cat > app/src/main/res/values/styles.xml <<'EOF'
+          cat > app/src/main/res/values/styles.xml <<'STYLES'
           <?xml version="1.0" encoding="utf-8"?>
-
           <resources>
-
-              <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
+              <style name="AppTheme" parent="Theme.Material.NoActionBar">
                   <item name="android:fontFamily">sans</item>
                   <item name="android:colorAccent">#FFFFFF</item>
               </style>
-
           </resources>
-          EOF
+          STYLES
 
       - name: Build APK
         run: gradle assembleDebug
