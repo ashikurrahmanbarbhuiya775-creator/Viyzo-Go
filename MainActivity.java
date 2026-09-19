@@ -25,6 +25,18 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.VideoView;
 import android.widget.MediaController;
+import android.widget.FrameLayout;
+
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdSize;
+import com.google.android.gms.ads.AdView;
+import com.google.android.gms.ads.MobileAds;
+
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageMetadata;
+import com.google.firebase.storage.StorageReference;
+import com.google.android.gms.tasks.Continuation;
+import com.google.android.gms.tasks.Task;
 
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
@@ -54,6 +66,14 @@ public class MainActivity extends Activity {
     // Firebase Authentication + Firestore
     private FirebaseAuth firebaseAuth;
     private FirebaseFirestore firestore;
+    private FirebaseStorage firebaseStorage;
+    private StorageReference storageRoot;
+    private AdView bannerAd;
+
+    // Monetization architecture: real AdMob revenue is paid to the Viyzo AdMob account.
+    // Creator earnings are calculated only from server-side eligible events; never fake a payout.
+    private long eligibleViews = 0;
+    private double creatorEstimatedEarnings = 0.0;
 
     private int likeCount = 0;
     private boolean liked = false;
@@ -153,6 +173,11 @@ public class MainActivity extends Activity {
         // Firebase is already configured in the Android build.
         firebaseAuth = FirebaseAuth.getInstance();
         firestore = FirebaseFirestore.getInstance();
+        firebaseStorage = FirebaseStorage.getInstance();
+        storageRoot = firebaseStorage.getReference();
+
+        // Google test ads are used in this build. Replace with your own AdMob IDs before release.
+        MobileAds.initialize(this, status -> {});
 
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
@@ -168,6 +193,7 @@ public class MainActivity extends Activity {
         if (musicPreview != null) {
             try { musicPreview.release(); } catch (Exception ignored) {}
         }
+        if (bannerAd != null) { try { bannerAd.destroy(); } catch (Exception ignored) {} }
         if (tts != null) {
             tts.stop();
             tts.shutdown();
@@ -469,6 +495,10 @@ public class MainActivity extends Activity {
                         profile.put("followersCount", 0);
                         profile.put("followingCount", 0);
                         profile.put("likesReceived", 0);
+                        profile.put("eligibleViews", 0);
+                        profile.put("estimatedEarnings", 0.0);
+                        profile.put("monetizationStatus", "NOT_ELIGIBLE");
+                        profile.put("payoutStatus", "NOT_CONNECTED");
                         profile.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
 
                         firestore.collection("users")
@@ -646,6 +676,9 @@ public class MainActivity extends Activity {
         Button save = button("🔖 SAVE");
         save.setOnClickListener(v -> toast("Saved to your saved items."));
         addRow(actions2, share, save);
+        Button whatsapp = button("🟢 WhatsApp");
+        whatsapp.setOnClickListener(v -> showWhatsAppShareMenu());
+        post.addView(whatsapp);
         post.addView(actions2);
         r.addView(post);
 
@@ -678,7 +711,8 @@ public class MainActivity extends Activity {
         addRow(tools3, status, mention);
         r.addView(tools3);
 
-        r.addView(text("Viyzo Go prototype: online database, server storage, real-time messaging/live and monetization will be connected in the next phase.", 11));
+        r.addView(text("Ads + creator earning architecture: new users can receive ads, while creator payout requires verified eligibility and payout setup.", 11));
+        addBannerAd(r);
 
         // FIXED PHONE BOTTOM NAVIGATION:
         // It stays attached to the bottom of the phone and does not scroll with the feed.
@@ -989,8 +1023,19 @@ public class MainActivity extends Activity {
     private void showStatusCreator() {
         LinearLayout r = page();
         title(r, "🟢 STATUS 24 HOURS");
+        r.addView(text("Use the same selected Viyzo video without asking the user to upload it again. The video is uploaded once to Firebase Storage and the status stores its download URL.", 13));
 
-        EditText status = field("Write your status");
+        Button useVideo = button("🎬 USE MY SELECTED VIDEO");
+        useVideo.setOnClickListener(v -> {
+            if (selectedVideoUri == null) {
+                toast("Select a video first from Home.");
+                return;
+            }
+            uploadVideoAsStatus(selectedVideoUri);
+        });
+        r.addView(useVideo);
+
+        EditText status = field("Write your status (optional)");
         status.setMinLines(3);
         r.addView(status);
 
@@ -999,17 +1044,53 @@ public class MainActivity extends Activity {
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             intent.setType("image/*");
             intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
             startActivityForResult(intent, REQ_STATUS_PHOTO);
         });
         r.addView(photo);
 
-        Button post = button("POST STATUS");
-        post.setOnClickListener(v ->
-                Toast.makeText(this, "Status posted for 24 hours - prototype.", Toast.LENGTH_SHORT).show());
+        Button post = button("POST STATUS FOR 24 HOURS");
+        post.setOnClickListener(v -> {
+            FirebaseUser user = firebaseAuth.getCurrentUser();
+            if (user == null) { toast("Please log in first."); return; }
+            Map<String,Object> data = new HashMap<>();
+            data.put("uid", user.getUid());
+            data.put("username", currentUsername);
+            data.put("text", status.getText().toString().trim());
+            data.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
+            data.put("expiresAt", new java.util.Date(System.currentTimeMillis() + 24L*60L*60L*1000L));
+            data.put("type", "text");
+            firestore.collection("statuses").add(data)
+                    .addOnSuccessListener(x -> { toast("Status is live for 24 hours."); speak("Your Viyzo status is live for 24 hours."); })
+                    .addOnFailureListener(e -> toast("Status failed: " + e.getMessage()));
+        });
         r.addView(post);
-
         addBack(r);
+    }
+
+    private void uploadVideoAsStatus(Uri uri) {
+        FirebaseUser user = firebaseAuth.getCurrentUser();
+        if (user == null) { toast("Please log in first."); return; }
+        String uid = user.getUid();
+        String fileName = "status_" + System.currentTimeMillis() + ".mp4";
+        StorageReference ref = storageRoot.child("statuses/" + uid + "/" + fileName);
+        StorageMetadata metadata = new StorageMetadata.Builder().setContentType("video/mp4").build();
+        toast("Uploading video to Status...");
+        ref.putFile(uri, metadata).continueWithTask((Continuation<com.google.firebase.storage.UploadTask.TaskSnapshot, Task<Uri>>) task -> {
+            if (!task.isSuccessful()) throw task.getException();
+            return ref.getDownloadUrl();
+        }).addOnSuccessListener(downloadUri -> {
+            Map<String,Object> data = new HashMap<>();
+            data.put("uid", uid);
+            data.put("username", currentUsername);
+            data.put("mediaUrl", downloadUri.toString());
+            data.put("type", "video");
+            data.put("createdAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
+            data.put("expiresAt", new java.util.Date(System.currentTimeMillis() + 24L*60L*60L*1000L));
+            firestore.collection("statuses").add(data)
+                    .addOnSuccessListener(x -> { toast("Video added to Viyzo Status for 24 hours."); speak("Your video is now in Viyzo Status."); })
+                    .addOnFailureListener(e -> toast("Status database save failed: " + e.getMessage()));
+        }).addOnFailureListener(e -> toast("Status upload failed: " + e.getMessage()));
     }
 
     private void showMention() {
@@ -1043,10 +1124,40 @@ public class MainActivity extends Activity {
     }
 
     private void shareVideo() {
+        if (selectedVideoUri == null) {
+            Intent share = new Intent(Intent.ACTION_SEND);
+            share.setType("text/plain");
+            share.putExtra(Intent.EXTRA_TEXT, "Watch this video on Viyzo Go");
+            startActivity(Intent.createChooser(share, "Share Viyzo Video"));
+            return;
+        }
         Intent share = new Intent(Intent.ACTION_SEND);
-        share.setType("text/plain");
-        share.putExtra(Intent.EXTRA_TEXT, "Watch this video on Viyzo Go");
+        share.setType("video/*");
+        share.putExtra(Intent.EXTRA_STREAM, selectedVideoUri);
+        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try { share.setClipData(android.content.ClipData.newRawUri("Viyzo Video", selectedVideoUri)); } catch (Exception ignored) {}
         startActivity(Intent.createChooser(share, "Share Viyzo Video"));
+    }
+
+    private void shareToPackage(String packageName, String label) {
+        if (selectedVideoUri == null) { toast("Select a video first."); return; }
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.setType("video/*");
+        share.putExtra(Intent.EXTRA_STREAM, selectedVideoUri);
+        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try { share.setClipData(android.content.ClipData.newRawUri("Viyzo Video", selectedVideoUri)); } catch (Exception ignored) {}
+        share.setPackage(packageName);
+        try { startActivity(share); }
+        catch (Exception e) { toast(label + " is not installed."); }
+    }
+
+    private void showWhatsAppShareMenu() {
+        String[] items = {"WhatsApp Chat / Status", "WhatsApp Business Chat / Status", "Other apps"};
+        new AlertDialog.Builder(this).setTitle("SHARE VIYZO VIDEO").setItems(items, (d,w) -> {
+            if (w == 0) shareToPackage("com.whatsapp", "WhatsApp");
+            else if (w == 1) shareToPackage("com.whatsapp.w4b", "WhatsApp Business");
+            else shareVideo();
+        }).show();
     }
 
     private void showMessages() {
@@ -1145,7 +1256,12 @@ public class MainActivity extends Activity {
         r.addView(text("Followers: 0", 18));
         r.addView(text("Following: 0", 18));
         r.addView(text("Creator Earnings: ₹0", 18));
-        r.addView(text("Monetization: Not connected", 18));
+        r.addView(text("Monetization: AdMob + creator eligibility architecture", 18));
+        r.addView(text("Eligible views: " + eligibleViews, 18));
+        r.addView(text("Estimated creator earnings: ₹" + String.format(Locale.US, "%.2f", creatorEstimatedEarnings), 18));
+        Button earnings = button("💰 OPEN REAL EARNINGS & PAYOUT");
+        earnings.setOnClickListener(v -> showEarningsCenter());
+        r.addView(earnings);
 
         addBack(r);
     }
@@ -1163,9 +1279,63 @@ public class MainActivity extends Activity {
 
         r.addView(button("📈 ANALYTICS"));
         r.addView(button("💵 MONETIZATION"));
-        r.addView(button("🏦 PAYOUT SETTINGS"));
+        Button payout = button("🏦 PAYOUT SETTINGS");
+        payout.setOnClickListener(v -> showEarningsCenter());
+        r.addView(payout);
+        r.addView(button("⚠️ Payout is enabled only after verified eligibility and real provider setup."));
 
         addBack(r);
+    }
+
+    private void showEarningsCenter() {
+        LinearLayout r = page();
+        title(r, "💰 REAL EARNINGS CENTER");
+        r.addView(text("This screen is connected to the real backend architecture, but it never invents money. AdMob pays the platform; creator payouts happen only after eligibility and a real payout provider/backend are configured.", 13));
+        r.addView(text("Ad revenue source: Google AdMob", 17));
+        r.addView(text("Eligible views: " + eligibleViews, 17));
+        r.addView(text("Creator estimated earnings: ₹" + String.format(Locale.US, "%.2f", creatorEstimatedEarnings), 17));
+        r.addView(text("Payout status: Provider not connected", 17));
+
+        Button refresh = button("🔄 REFRESH MY EARNING RECORD");
+        refresh.setOnClickListener(v -> loadEarningsFromFirestore());
+        r.addView(refresh);
+
+        Button setup = button("🏦 PAYOUT ACCOUNT SETUP");
+        setup.setOnClickListener(v -> toast("Real payout provider keys/account details must be configured on the secure server before money can be sent."));
+        r.addView(setup);
+
+        Button admin = button("🛠️ ADMIN REVENUE LEDGER");
+        admin.setOnClickListener(v -> showAdminDashboard());
+        r.addView(admin);
+        addBack(r);
+    }
+
+    private void loadEarningsFromFirestore() {
+        FirebaseUser user = firebaseAuth.getCurrentUser();
+        if (user == null) { toast("Please log in first."); return; }
+        firestore.collection("creator_earnings").document(user.getUid()).get()
+                .addOnSuccessListener(doc -> {
+                    Long views = doc.getLong("eligibleViews");
+                    Double amount = doc.getDouble("estimatedEarnings");
+                    eligibleViews = views == null ? 0 : views;
+                    creatorEstimatedEarnings = amount == null ? 0.0 : amount;
+                    toast("Earnings record refreshed.");
+                    showEarningsCenter();
+                })
+                .addOnFailureListener(e -> toast("Could not load earnings: " + e.getMessage()));
+    }
+
+    private void addBannerAd(LinearLayout r) {
+        try {
+            bannerAd = new AdView(this);
+            bannerAd.setAdSize(AdSize.BANNER);
+            // Google demo banner ID. Replace with your real AdMob ad-unit ID before release.
+            bannerAd.setAdUnitId("ca-app-pub-3940256099942544/9214589741");
+            r.addView(bannerAd, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(60)));
+            bannerAd.loadAd(new AdRequest.Builder().build());
+        } catch (Exception e) {
+            Toast.makeText(this, "Ad setup unavailable in this build.", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void showAdminDashboard() {
