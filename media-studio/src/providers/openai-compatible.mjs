@@ -1,3 +1,5 @@
+import { validateResearchReport } from "../domain/research-safety.mjs";
+
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 
 export function getTextEngineStatus(env = process.env) {
@@ -13,7 +15,7 @@ export function getTextEngineStatus(env = process.env) {
 }
 
 export async function generateScriptDraft(job, env = process.env) {
-  if (!job.researchReport || !Array.isArray(job.researchReport.sources) || job.researchReport.sources.length < 2) return { ok: false, error: "verified_research_required" };
+  if (!validateResearchReport(job.researchReport, job.countryCode).ok) return { ok: false, error: "verified_research_required" };
   const status = getTextEngineStatus(env);
   if (!status.configured) return { ok: false, error: "text_engine_not_configured" };
 
