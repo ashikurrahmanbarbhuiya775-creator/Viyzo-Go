@@ -69,3 +69,7 @@ Set `HEYGEN_API_KEY` and `HEYGEN_AVATAR_ID` on the server only; optionally set `
 - Never use the Viyzo Worker Supabase project or its credentials for this product.
 
 This is a development scaffold, not a production-ready or deployed service.
+
+## Owner system readiness diagnostics
+
+Authenticated owners can call `GET /api/system-status` to inspect whether the configured data directory is writable and whether script, presenter, and video engines are configured. The response intentionally does not expose secret values or filesystem paths. Backup remains operator-managed; Facebook publishing is reported as not configured until the official Meta integration is completed.
