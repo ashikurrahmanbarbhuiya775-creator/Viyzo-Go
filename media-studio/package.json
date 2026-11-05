@@ -10,6 +10,6 @@
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
     "test": "node --test",
-    "check": "node --check server.mjs && node --check src/providers/openai-compatible.mjs && node --check src/providers/ffmpeg-pipeline.mjs && node --test"
+    "check": "node --check server.mjs && node --check src/security/owner-auth.mjs && node --check scripts/hash-owner-password.mjs && node --check src/providers/openai-compatible.mjs && node --check src/providers/ffmpeg-pipeline.mjs && node --test"
   }
 }
