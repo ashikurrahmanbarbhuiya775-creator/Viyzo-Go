@@ -62,6 +62,13 @@ test("local API protects owner routes and creates validated jobs", async () => {
     assert.equal(logout.status, 200);
     const expiredSession = await fetch(base + "/api/session", { headers: { cookie } });
     assert.equal(expiredSession.status, 401);
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const failed = await fetch(base + "/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: "incorrect-password" }) });
+      assert.equal(failed.status, 401);
+    }
+    const throttled = await fetch(base + "/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: "test-owner-password-long-enough" }) });
+    assert.equal(throttled.status, 429);
+
 
   } finally {
     child.kill("SIGTERM");
