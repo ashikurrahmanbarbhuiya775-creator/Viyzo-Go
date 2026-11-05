@@ -60,12 +60,10 @@ export async function researchCountry(job, env = process.env, now = new Date()) 
       .flatMap(item => item.annotations || [])
       .filter(item => item.type === "url_citation" && typeof item.url === "string");
     const sources = [...new Map(annotations.map(item => [item.url, { title: item.title || item.url, url: item.url }])).values()];
-    if (sources.length < 2) return { ok: false, error: "insufficient_cited_sources" };
-    return {
-      ok: true,
-      report: { ...report, countryCode: job.countryCode, researchedAt: generatedAt, sources, freshness: "live_search_at_generation_time" },
-      model: env.OPENAI_MODEL
-    };
+    const normalizedReport = { ...report, countryCode: job.countryCode, researchedAt: generatedAt, sources, freshness: "live_search_at_generation_time" };
+    const validation = validateResearchReport(normalizedReport, job.countryCode, now);
+    if (!validation.ok) return { ok: false, error: "research_evidence_validation_failed", validation };
+    return { ok: true, report: normalizedReport, validation, model: env.OPENAI_MODEL };
   } catch (error) {
     return { ok: false, error: error.name === "AbortError" ? "research_timeout" : "research_provider_unavailable" };
   } finally {
