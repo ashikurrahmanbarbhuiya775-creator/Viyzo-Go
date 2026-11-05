@@ -7,6 +7,7 @@ import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
 import { dirname, resolve } from "node:path";
 import { createVideoJob, approveJob, completeStage } from "./src/domain/video-job.mjs";
+import { validateResearchReport } from "./src/domain/research-safety.mjs";
 import { getTextEngineStatus, generateScriptDraft, generateMetadataDraft } from "./src/providers/openai-compatible.mjs";
 import { getCountryResearchStatus, researchCountry } from "./src/providers/country-research.mjs";
 import { extensionForMime, inspectVideo, autoEditVideo, qualityCheckVideo, getMediaEngineStatus, MEDIA_LIMITS } from "./src/providers/ffmpeg-pipeline.mjs";
@@ -395,13 +396,15 @@ const server = http.createServer(async (req, res) => {
       const job = store.jobs[index];
       if (job.ownerApproved) return send(res, 409, { error: "job_already_approved" });
 
-      if (!job.researchReport || !Array.isArray(job.researchReport.sources) || job.researchReport.sources.length < 2) {
+      if (!job.researchReport || !validateResearchReport(job.researchReport, job.countryCode).ok) {
         const research = await researchCountry(job);
         if (!research.ok) return send(res, research.error === "research_engine_not_configured" ? 503 : 502, { error: research.error, stage: "research", providerStatus: research.status || null });
         job.researchReport = research.report;
         job.researchModel = research.model;
         job.researchedAt = research.report.researchedAt;
       }
+      const evidenceCheck = validateResearchReport(job.researchReport, job.countryCode);
+      if (!evidenceCheck.ok) return send(res, 422, { error: "research_evidence_validation_failed", validation: evidenceCheck });
 
       // Prepare the complete editorial package in one owner action. Provider calls
       // remain server-side and are never attempted unless credentials are configured.
