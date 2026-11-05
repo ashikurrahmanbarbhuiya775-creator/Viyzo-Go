@@ -89,7 +89,7 @@ function renderProjects(){
     const id=escapeHtml(p.id||"");
     return '<article class="project-card"><div class="project-head"><div><div class="label">VIDEO PROJECT</div><h3>'+escapeHtml(p.prompt||p.topic||"Untitled video")+'</h3><p>'+escapeHtml(p.countryCode||p.country||"—")+' · '+escapeHtml(p.language||"—")+'</p></div><span class="pill">'+escapeHtml(p.status||"Draft")+'</span></div>'+
     (p.id?'<div class="action-group"><div class="action-title">01 · SCRIPT & PACKAGE</div><div class="action-buttons"><button class="btn" data-package="'+id+'">Prepare package</button><button class="btn secondary" data-script="'+id+'">Script</button><button class="btn secondary" data-metadata="'+id+'">Metadata</button></div></div>'+
-    '<div class="action-group"><div class="action-title">02 · AI PRESENTER</div><div class="action-buttons"><button class="btn secondary" data-presenter="'+id+'">Generate presenter</button><button class="btn secondary" data-presenter-status="'+id+'">Check status</button></div></div>'+
+    '<div class="action-group"><div class="action-title">02 · AI PRESENTER</div><div class="action-buttons"><button class="btn secondary" data-presenter="'+id+'">Generate presenter</button><button class="btn secondary" data-presenter-status="'+id+'">Check status</button><button class="btn" data-presenter-import="'+id+'">Import finished video</button></div></div>'+
     '<div class="action-group"><div class="action-title">03 · VIDEO FILE & QUALITY</div><div class="action-buttons"><label class="btn secondary file-button">Upload source<input type="file" accept="video/mp4,video/webm,video/quicktime" data-upload="'+id+'" aria-label="Upload source video"></label><button class="btn" data-postproduce="'+id+'">Auto-produce + quality</button><button class="btn secondary" data-edit="'+id+'">Auto-edit only</button><button class="btn secondary" data-quality="'+id+'">Quality check</button></div></div>':'<p>Demo preview only. Connect the private API to enable actions.</p>')+'</article>';
   }).join("")+'</div>':'<p>No video projects yet. Create your first project.</p>';
   document.getElementById("recent").innerHTML=content;
@@ -180,6 +180,20 @@ document.getElementById("libraryList").addEventListener("click",async e=>{
   finally { b.disabled=false;b.textContent="Title & thumbnail brief"; }
 });
 document.getElementById("libraryList").addEventListener("click",async e=>{const b=e.target.closest("[data-presenter]");if(!b)return;if(!apiConnected){alert("Sign in to the Owner API first.");return;}b.disabled=true;document.getElementById("presenterStatus").textContent="Submitting presenter video request…";try{const data=await apiFetch("/api/jobs/"+b.dataset.presenter+"/generate-presenter",{method:"POST",body:"{}"});document.getElementById("presenterStatus").textContent="Presenter render submitted. Check status after a short wait.";await refreshJobs();}catch(err){document.getElementById("presenterStatus").textContent="Presenter: "+err.message;}finally{b.disabled=false;}});
+
+document.getElementById("libraryList").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-presenter-import]");if(!b)return;
+  if(!apiConnected){alert("Sign in to the Owner API first.");return;}
+  b.disabled=true;b.textContent="Importing…";
+  document.getElementById("presenterStatus").textContent="Importing completed presenter video into your private library and validating it…";
+  try{
+    await apiFetch("/api/jobs/"+b.dataset.presenterImport+"/import-presenter-video",{method:"POST",body:"{}"});
+    document.getElementById("presenterStatus").textContent="Presenter video imported and validated. You can now run Auto-produce + quality.";
+    document.getElementById("mediaStatus").textContent="AI presenter video is now the private source video. Run Auto-produce + quality to edit it and create a thumbnail.";
+    await refreshJobs();
+  }catch(err){document.getElementById("presenterStatus").textContent="Presenter import: "+err.message;}
+  finally{b.disabled=false;b.textContent="Import finished video";}
+});
 document.getElementById("libraryList").addEventListener("click",async e=>{const b=e.target.closest("[data-presenter-status]");if(!b)return;if(!apiConnected){alert("Sign in to the Owner API first.");return;}b.disabled=true;try{const data=await apiFetch("/api/jobs/"+b.dataset.presenterStatus+"/presenter-status");document.getElementById("presenterStatus").textContent="Presenter render status: "+data.presenterVideo.status;const link=document.getElementById("presenterVideoLink");if(data.presenterVideo.videoUrl){link.href=data.presenterVideo.videoUrl;link.style.display="inline-block";}}catch(err){document.getElementById("presenterStatus").textContent="Presenter status: "+err.message;}finally{b.disabled=false;}});
 
 document.getElementById("libraryList").addEventListener("click",async e=>{
