@@ -7,11 +7,13 @@ All files in this folder are independent of the Android app and Viyzo Worker web
 - Node.js 20+ built-in HTTP server; no third-party packages.
 - Same-origin dashboard hosting at `/` to avoid cross-origin browser API calls.
 - Local JSON persistence for development only.
-- Owner-only API protected by a bearer secret (minimum 32 characters).
+- Owner password login uses a salted scrypt hash; successful login issues a 12-hour HttpOnly, SameSite=Strict session cookie.
+- Cookie-authenticated mutations require an exact same-origin Origin header; local bearer token remains optional for development.
 - Request body limit, constant-time token comparison, no-store responses and atomic local file replacement.
 - Domain validation for country code, language, duration and presenter choice.
 - Ordered pipeline stage progression and explicit owner approval gate.
 - Owner-authenticated raw source upload (MP4/WebM/MOV), FFprobe validation and 1 GiB upload limit.
+- Private local media vault with mode 0700 directories and mode 0600 media files on POSIX systems; not remote cloud storage.
 - FFmpeg auto-edit to 1080p/30fps H.264/AAC with audio loudness normalization, plus 1280×720 JPEG thumbnail extraction.
 - Authenticated edited-video and thumbnail retrieval endpoints.
 - No social upload or publish endpoint exists yet.
@@ -29,11 +31,11 @@ All files in this folder are independent of the Android app and Viyzo Worker web
 - `POST /api/jobs/:id/stage` — complete the next stage in order. Body: `{ "stage": "research" }`.
 - `POST /api/jobs/:id/approve` — owner approval only after quality_check.
 
-Send `Authorization: Bearer <OWNER_ACCESS_TOKEN>` on all API routes except health.
+Sign in with POST /auth/login using a password; the server sets the HttpOnly owner session cookie. GET /api/session checks it and POST /auth/logout revokes it. For local command-line testing only, Authorization: Bearer OWNER_ACCESS_TOKEN remains supported.
 
 ## Local run
 1. Install Node.js 20 or newer and FFmpeg/FFprobe.
-2. Copy `.env.example` to `.env`, choose a long random owner token, and export the values in your shell. The server does not load .env files automatically.
+2. Generate a password hash by piping a long owner password into scripts/hash-owner-password.mjs, put it in OWNER_PASSWORD_HASH, and export it in your shell. Optionally set OWNER_ACCESS_TOKEN for local CLI calls. The server does not load .env files automatically.
 3. Run `npm test` and `npm start` from this folder.
 4. Bind to localhost for local testing. Do not expose this server to the public internet.
 
@@ -42,9 +44,9 @@ The script adapter supports OpenAI-compatible Chat Completions endpoints. Config
 
 ## Production blockers (must be solved before launch)
 - Replace JSON storage with a separate Media Studio database and migrations.
-- Add proper owner identity through an authentication provider; never rely on a shared static token for a public deployment.
+- Upgrade the local owner-login foundation to persistent production identity, MFA, password recovery, session storage, login throttling and audit trails before public deployment.
 - Add CSRF/origin policy if cookie sessions are used, rate limits, audit log, backup/restore, observability and malware/content scanning.
-- Add secure private object storage, resumable uploads, signed URLs and server-side media probing.
+- Replace local-disk media storage with a separate private object-storage account, resumable uploads and short-lived signed URLs before remote deployment.
 - Integrate real research, LLM, voice, video rendering, editing and thumbnail providers with per-provider budgets and secret management.
 - Validate current-affairs claims against trustworthy sources and preserve source records.
 - Add platform-specific OAuth and permissions. Publishing must remain a separate explicit owner action.
