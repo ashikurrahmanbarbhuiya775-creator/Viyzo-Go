@@ -8,6 +8,7 @@ import { Transform } from "node:stream";
 import { dirname, resolve } from "node:path";
 import { createVideoJob, approveJob, completeStage } from "./src/domain/video-job.mjs";
 import { getTextEngineStatus, generateScriptDraft, generateMetadataDraft } from "./src/providers/openai-compatible.mjs";
+import { getCountryResearchStatus, researchCountry } from "./src/providers/country-research.mjs";
 import { extensionForMime, inspectVideo, autoEditVideo, qualityCheckVideo, getMediaEngineStatus, MEDIA_LIMITS } from "./src/providers/ffmpeg-pipeline.mjs";
 import { getAvatarEngineStatus, generateAvatarVideo, getAvatarVideoStatus, isTrustedAvatarVideoUrl } from "./src/providers/heygen-avatar.mjs";
 
@@ -157,6 +158,7 @@ const server = http.createServer(async (req, res) => {
       }
       const engines = {
         script: getTextEngineStatus(),
+        research: getCountryResearchStatus(),
         presenter: getAvatarEngineStatus(),
         video: await getMediaEngineStatus()
       };
@@ -175,8 +177,8 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/engines") {
       return send(res, 200, {
-        engines: [getTextEngineStatus(), await getMediaEngineStatus()],
-        otherEngines: [getAvatarEngineStatus(), ...["research", "voice", "video_render", "publishing"].map(id => ({ id, status: "not_configured" }))]
+        engines: [getTextEngineStatus(), getCountryResearchStatus(), await getMediaEngineStatus()],
+        otherEngines: [getAvatarEngineStatus(), ...["voice", "video_render", "publishing"].map(id => ({ id, status: "not_configured" }))]
       });
     }
     if (req.method === "GET" && url.pathname === "/api/jobs") {
@@ -325,6 +327,24 @@ const server = http.createServer(async (req, res) => {
       } catch { return send(res, 404, { error: "media_file_missing" }); }
     }
 
+    const researchMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/research$/i);
+    if (researchMatch && req.method === "POST") {
+      const [, id] = researchMatch;
+      const store = await readStore();
+      const index = store.jobs.findIndex(job => job.id === id);
+      if (index < 0) return send(res, 404, { error: "job_not_found" });
+      const job = store.jobs[index];
+      if (job.ownerApproved) return send(res, 409, { error: "job_already_approved" });
+      const result = await researchCountry(job);
+      if (!result.ok) return send(res, result.error === "research_engine_not_configured" ? 503 : 502, { error: result.error, providerStatus: result.status || null });
+      job.researchReport = result.report;
+      job.researchModel = result.model;
+      job.researchedAt = result.report.researchedAt;
+      job.updatedAt = new Date().toISOString();
+      await saveStore(store);
+      return send(res, 200, { job, message: "Live country research completed with cited web sources. Review the facts before production." });
+    }
+
     const scriptMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/generate-script$/i);
     if (scriptMatch && req.method === "POST") {
       const [, id] = scriptMatch;
@@ -374,6 +394,14 @@ const server = http.createServer(async (req, res) => {
       if (index < 0) return send(res, 404, { error: "job_not_found" });
       const job = store.jobs[index];
       if (job.ownerApproved) return send(res, 409, { error: "job_already_approved" });
+
+      if (!job.researchReport || !Array.isArray(job.researchReport.sources) || job.researchReport.sources.length < 2) {
+        const research = await researchCountry(job);
+        if (!research.ok) return send(res, research.error === "research_engine_not_configured" ? 503 : 502, { error: research.error, stage: "research", providerStatus: research.status || null });
+        job.researchReport = research.report;
+        job.researchModel = research.model;
+        job.researchedAt = research.report.researchedAt;
+      }
 
       // Prepare the complete editorial package in one owner action. Provider calls
       // remain server-side and are never attempted unless credentials are configured.
