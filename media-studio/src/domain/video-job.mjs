@@ -59,7 +59,7 @@ export function completeStage(job, stage, now = new Date().toISOString()) {
 
 export function approveJob(job, ownerId, now = new Date().toISOString()) {
   if (!ownerId) return { ok: false, error: "owner_identity_required" };
-  if (!job.completedStages.includes("quality_check")) return { ok: false, error: "quality_check_incomplete" };
+  if (!job.completedStages.includes("quality_check") || job.qualityReport?.passed !== true) return { ok: false, error: "quality_check_incomplete" };
   return {
     ok: true,
     job: {
