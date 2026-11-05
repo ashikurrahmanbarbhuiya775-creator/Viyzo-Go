@@ -71,7 +71,10 @@ async function readBody(req) {
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, "http://" + (req.headers.host || "localhost"));
-    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {\n      return sendHtml(res, await readFile(resolve("index.html"), "utf8"));\n    }\n    if (req.method === "GET" && url.pathname === "/health") {
+    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
+      return sendHtml(res, await readFile(resolve("index.html"), "utf8"));
+    }
+    if (req.method === "GET" && url.pathname === "/health") {
       return send(res, 200, { ok: true, service: "viyzo-media-studio-api", mode: "local-demo" });
     }
     if (!authorized(req)) return send(res, 401, { error: "unauthorized" });
