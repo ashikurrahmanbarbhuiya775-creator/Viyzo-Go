@@ -119,9 +119,12 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { job: store.jobs[index] });
     }
 
-    const metadataMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/generate-metadata$/i);
-    if (metadataMatch && req.method === "POST") {
-      const [, id] = metadataMatch;
+    const metadataSuffix = "/generate-metadata";
+    const metadataPrefix = "/api/jobs/";
+    const metadataId = url.pathname.startsWith(metadataPrefix) && url.pathname.endsWith(metadataSuffix)
+      ? url.pathname.slice(metadataPrefix.length, -metadataSuffix.length) : "";
+    if (req.method === "POST" && /^[0-9a-f-]{36}$/i.test(metadataId)) {
+      const id = metadataId;
       const store = await readStore();
       const index = store.jobs.findIndex(job => job.id === id);
       if (index < 0) return send(res, 404, { error: "job_not_found" });
