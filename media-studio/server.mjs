@@ -142,6 +142,37 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ ok: true }));
     }
 
+    if (req.method === "GET" && url.pathname === "/api/system-status") {
+      let storageWritable = false;
+      let storageBytes = null;
+      const probe = resolve(dirname(DATA_FILE), ".viyzo-storage-probe-" + randomUUID());
+      try {
+        await mkdir(dirname(DATA_FILE), { recursive: true });
+        await writeFile(probe, "ok", { flag: "wx", mode: 0o600 });
+        await unlink(probe);
+        storageWritable = true;
+        try { storageBytes = (await stat(dirname(DATA_FILE))).size; } catch {}
+      } catch {
+        try { await unlink(probe); } catch {}
+      }
+      const engines = {
+        script: getTextEngineStatus(),
+        presenter: getAvatarEngineStatus(),
+        video: await getMediaEngineStatus()
+      };
+      return send(res, 200, {
+        ok: storageWritable,
+        service: "viyzo-media-studio-api",
+        storage: { writable: storageWritable, directory: "configured-data-directory", directoryStatBytes: storageBytes },
+        engines,
+        checks: {
+          ownerAuthentication: ownerAuth.configured ? "configured" : "not_configured",
+          backup: "operator_managed",
+          publishing: "not_configured"
+        }
+      });
+    }
+
     if (req.method === "GET" && url.pathname === "/api/engines") {
       return send(res, 200, {
         engines: [getTextEngineStatus(), await getMediaEngineStatus()],
