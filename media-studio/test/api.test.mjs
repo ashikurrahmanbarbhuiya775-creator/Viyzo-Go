@@ -1,0 +1,52 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { createServer } from "node:net";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+test("local API protects owner routes and creates validated jobs", async () => {
+  const probe = createServer();
+  await new Promise(resolve => probe.listen(0, "127.0.0.1", resolve));
+  const port = probe.address().port;
+  await new Promise(resolve => probe.close(resolve));
+  const dir = await mkdtemp(join(tmpdir(), "viyzo-media-test-"));
+  const token = "test-owner-token-0123456789-abcdefghijkl";
+  const child = spawn(process.execPath, ["server.mjs"], {
+    cwd: new URL("..", import.meta.url).pathname,
+    env: { ...process.env, HOST: "127.0.0.1", PORT: String(port), OWNER_ACCESS_TOKEN: token, DATA_FILE: join(dir, "jobs.json") },
+    stdio: "ignore"
+  });
+  const base = "http://127.0.0.1:" + port;
+  try {
+    let ready = false;
+    for (let i = 0; i < 50; i++) {
+      try { if ((await fetch(base + "/health")).ok) { ready = true; break; } } catch {}
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    assert.equal(ready, true, "API should start");
+    const page = await fetch(base + "/");
+    assert.equal(page.status, 200);
+    assert.match(await page.text(), /Viyzo AI Media Studio/);
+
+    const unauthorized = await fetch(base + "/api/jobs");
+    assert.equal(unauthorized.status, 401);
+    const headers = { authorization: "Bearer " + token, "content-type": "application/json" };
+    const invalid = await fetch(base + "/api/jobs", { method: "POST", headers, body: JSON.stringify({ prompt: "short", countryCode: "JPN", language: "en", durationSeconds: 5 }) });
+    assert.equal(invalid.status, 422);
+    const created = await fetch(base + "/api/jobs", { method: "POST", headers, body: JSON.stringify({ prompt: "Create an educational video about Japan", countryCode: "JP", language: "en", durationSeconds: 300, presenter: "fictional" }) });
+    assert.equal(created.status, 201);
+    const { job } = await created.json();
+    assert.equal(job.status, "draft");
+    const engines = await fetch(base + "/api/engines", { headers });
+    assert.equal(engines.status, 200);
+    const engineData = await engines.json();
+    assert.equal(engineData.engines[0].status, "not_configured");
+    const script = await fetch(base + "/api/jobs/" + job.id + "/generate-script", { method: "POST", headers, body: "{}" });
+    assert.equal(script.status, 503, "script generation must remain disabled without provider credentials");
+  } finally {
+    child.kill("SIGTERM");
+    await rm(dir, { recursive: true, force: true });
+  }
+});
