@@ -44,3 +44,15 @@ test("publishing remains gated after approval", () => {
   assert.equal(approved.job.ownerApproved, true);
   assert.equal(approved.job.publishState, "ready_for_explicit_publish_action");
 });
+
+test("stores a numbered destination Page slot for the selected country", () => {
+  const result = createVideoJob({ ...valid, targetPageNumber: 3 });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.job.targetPage, { number: 3, countryCode: "JP", status: "not_connected" });
+  assert.equal(result.job.publishState, "locked");
+});
+
+test("rejects invalid destination Page numbers", () => {
+  assert.equal(createVideoJob({ ...valid, targetPageNumber: 0 }).ok, false);
+  assert.equal(createVideoJob({ ...valid, targetPageNumber: 51 }).ok, false);
+});
