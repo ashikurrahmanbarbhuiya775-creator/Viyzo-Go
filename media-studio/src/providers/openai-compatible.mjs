@@ -13,6 +13,7 @@ export function getTextEngineStatus(env = process.env) {
 }
 
 export async function generateScriptDraft(job, env = process.env) {
+  if (!job.researchReport || !Array.isArray(job.researchReport.sources) || job.researchReport.sources.length < 2) return { ok: false, error: "verified_research_required" };
   const status = getTextEngineStatus(env);
   if (!status.configured) return { ok: false, error: "text_engine_not_configured" };
 
@@ -33,7 +34,7 @@ export async function generateScriptDraft(job, env = process.env) {
         messages: [
           {
             role: "system",
-            content: "You are a careful video script editor. Return a concise structured draft with title, hook, scene-by-scene narration, and a fact_check list. Never invent current events, statistics, quotes, or sources. Clearly label claims needing verification. Do not impersonate real people or imply government endorsement. Output valid JSON only with keys title, hook, scenes (array of objects with visual and narration), fact_check (array), and closing."
+            content: "You are a careful current-affairs video journalist. Use ONLY the supplied live country research report for factual claims. Never invent or extrapolate current events, statistics, quotes, sources, dates, or government achievements. Attribute claims to named sources and dates in narration or fact_check. Clearly flag uncertainty and material context; do not turn unsupported positive claims into praise. If evidence is weak or contradictory, say so and avoid the claim. Do not impersonate real people or imply government endorsement. Output valid JSON only with keys title, hook, scenes (array of objects with visual and narration), fact_check (array), and closing."
           },
           {
             role: "user",
@@ -43,6 +44,7 @@ export async function generateScriptDraft(job, env = process.env) {
               language: job.language,
               target_duration_seconds: job.durationSeconds,
               presenter: job.presenter,
+              live_research_report: job.researchReport,
               note: "This is a draft. Current-affairs facts must be independently researched and verified before production."
             })
           }
