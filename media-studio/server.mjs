@@ -297,6 +297,43 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { job: store.jobs[index] });
     }
 
+    const packageMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/prepare-package$/i);
+    if (packageMatch && req.method === "POST") {
+      const [, id] = packageMatch;
+      const store = await readStore();
+      const index = store.jobs.findIndex(job => job.id === id);
+      if (index < 0) return send(res, 404, { error: "job_not_found" });
+      const job = store.jobs[index];
+      if (job.ownerApproved) return send(res, 409, { error: "job_already_approved" });
+
+      // Prepare the complete editorial package in one owner action. Provider calls
+      // remain server-side and are never attempted unless credentials are configured.
+      if (!job.scriptDraft) {
+        const script = await generateScriptDraft(job);
+        if (!script.ok) {
+          const status = script.error === "text_engine_not_configured" ? 503 : 502;
+          return send(res, status, { error: script.error, stage: "script", providerStatus: script.status });
+        }
+        job.scriptDraft = script.script;
+        job.scriptModel = script.model;
+      }
+      if (!job.metadataDraft) {
+        const metadata = await generateMetadataDraft(job);
+        if (!metadata.ok) {
+          job.updatedAt = new Date().toISOString();
+          await saveStore(store);
+          const status = metadata.error === "text_engine_not_configured" ? 503 : 502;
+          return send(res, status, { error: metadata.error, stage: "metadata", scriptSaved: true, providerStatus: metadata.status });
+        }
+        job.metadataDraft = metadata.metadata;
+        job.metadataModel = metadata.model;
+      }
+      job.packagePreparedAt = new Date().toISOString();
+      job.updatedAt = job.packagePreparedAt;
+      await saveStore(store);
+      return send(res, 200, { job, message: "Script and publishing metadata drafts are ready for owner review. No video has been rendered yet." });
+    }
+
     const presenterMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/generate-presenter$/i);
     if (presenterMatch && req.method === "POST") {
       const [, id] = presenterMatch;
