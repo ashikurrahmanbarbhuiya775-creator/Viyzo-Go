@@ -32,3 +32,8 @@ An optional OpenAI-compatible text adapter for script and metadata drafts is imp
 
 ## Isolation and change control
 All work is on `media-studio-isolated`. Do not merge to `main` until the owner reviews the isolated folder and confirms. Never reuse the Viyzo Worker Supabase project or credentials for this product.
+
+
+## Live country research gate
+
+Before a script/package can be drafted, the owner workflow runs a fresh country-specific web research pass using the OpenAI Responses API web-search tool. The report records its research timestamp, cited source URLs, recent developments, supported positive points, claims to avoid, and unanswered questions. Script generation is blocked unless the job contains at least two cited source URLs. Research is not a guarantee that every claim is true: the owner must review the sources and report before approving production. Configure `OPENAI_API_KEY` and `OPENAI_MODEL` on the server; web-search and model usage may incur provider charges. The research route is `POST /api/jobs/:id/research`; package preparation runs it automatically when no valid report is present. No provider key is committed to the repository.
