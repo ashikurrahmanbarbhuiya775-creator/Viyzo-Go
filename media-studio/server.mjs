@@ -113,6 +113,7 @@ const server = http.createServer(async (req, res) => {
       const store = await readStore();
       const index = store.jobs.findIndex(job => job.id === id);
       if (index < 0) return send(res, 404, { error: "job_not_found" });
+      if (store.jobs[index].ownerApproved) return send(res, 409, { error: "job_already_approved" });
       const mime = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
       const extension = extensionForMime(mime);
       if (!extension) return send(res, 415, { error: "unsupported_video_type", allowed: ["video/mp4", "video/webm", "video/quicktime"] });
@@ -133,6 +134,11 @@ const server = http.createServer(async (req, res) => {
       try {
         await pipeline(req, limiter, createWriteStream(tempPath, { flags: "wx", mode: 0o600 }));
         const probe = await inspectVideo(tempPath);
+        const previousKey = store.jobs[index].sourceMedia?.storageKey;
+        if (previousKey && previousKey !== key) await unlink(resolve(MEDIA_DIR, previousKey)).catch(() => {});
+        await unlink(resolve(MEDIA_DIR, id + "-edited.mp4")).catch(() => {});
+        await unlink(resolve(MEDIA_DIR, id + "-thumbnail.jpg")).catch(() => {});
+        delete store.jobs[index].processedMedia;
         await rename(tempPath, finalPath);
         store.jobs[index].sourceMedia = { storageKey: key, mime, bytes: probe.bytes, durationSeconds: probe.durationSeconds, width: probe.width, height: probe.height, hasAudio: probe.hasAudio };
         store.jobs[index].updatedAt = new Date().toISOString();
@@ -152,6 +158,7 @@ const server = http.createServer(async (req, res) => {
       const store = await readStore();
       const index = store.jobs.findIndex(job => job.id === id);
       if (index < 0) return send(res, 404, { error: "job_not_found" });
+      if (store.jobs[index].ownerApproved) return send(res, 409, { error: "job_already_approved" });
       const source = store.jobs[index].sourceMedia;
       if (!source?.storageKey || !/^[0-9a-f-]{36}-source\\.(mp4|webm|mov)$/i.test(source.storageKey)) return send(res, 409, { error: "source_video_required" });
       try {
