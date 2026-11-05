@@ -56,6 +56,11 @@ test("local API protects owner routes and creates validated jobs", async () => {
     assert.equal(engines.status, 200);
     const engineData = await engines.json();
     assert.equal(engineData.engines[0].status, "not_configured");
+    const presenterEngine = engineData.otherEngines.find(engine => engine.id === "ai_presenter");
+    assert.equal(presenterEngine.status, "not_configured");
+    assert.equal(presenterEngine.lipSync, true);
+    const presenterOff = await fetch(base + "/api/jobs/" + job.id + "/generate-presenter", { method: "POST", headers, body: "{}" });
+    assert.equal(presenterOff.status, 503, "presenter provider must stay off without API credentials");
     const script = await fetch(base + "/api/jobs/" + job.id + "/generate-script", { method: "POST", headers, body: "{}" });
     assert.equal(script.status, 503, "script generation must remain disabled without provider credentials");
     const logout = await fetch(base + "/auth/logout", { method: "POST", headers: { cookie, origin: base, "content-type": "application/json" }, body: "{}" });
