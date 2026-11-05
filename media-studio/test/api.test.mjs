@@ -5,6 +5,7 @@ import { createServer } from "node:net";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { hashOwnerPassword } from "../src/security/owner-auth.mjs";
 
 test("local API protects owner routes and creates validated jobs", async () => {
   const probe = createServer();
@@ -13,9 +14,10 @@ test("local API protects owner routes and creates validated jobs", async () => {
   await new Promise(resolve => probe.close(resolve));
   const dir = await mkdtemp(join(tmpdir(), "viyzo-media-test-"));
   const token = "test-owner-token-0123456789-abcdefghijkl";
+  const passwordHash = hashOwnerPassword("test-owner-password-long-enough");
   const child = spawn(process.execPath, ["server.mjs"], {
     cwd: new URL("..", import.meta.url).pathname,
-    env: { ...process.env, HOST: "127.0.0.1", PORT: String(port), OWNER_ACCESS_TOKEN: token, DATA_FILE: join(dir, "jobs.json") },
+    env: { ...process.env, HOST: "127.0.0.1", PORT: String(port), OWNER_ACCESS_TOKEN: token, OWNER_PASSWORD_HASH: passwordHash, DATA_FILE: join(dir, "jobs.json") },
     stdio: "ignore"
   });
   const base = "http://127.0.0.1:" + port;
@@ -30,6 +32,17 @@ test("local API protects owner routes and creates validated jobs", async () => {
     assert.equal(page.status, 200);
     assert.match(await page.text(), /Viyzo AI Media Studio/);
 
+    const badLogin = await fetch(base + "/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: "wrong-password" }) });
+    assert.equal(badLogin.status, 401);
+    const login = await fetch(base + "/auth/login", { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ password: "test-owner-password-long-enough" }) });
+    assert.equal(login.status, 200);
+    const cookie = login.headers.get("set-cookie").split(";")[0];
+    assert.match(login.headers.get("set-cookie"), /HttpOnly/);
+    assert.match(login.headers.get("set-cookie"), /SameSite=Strict/);
+    const session = await fetch(base + "/api/session", { headers: { cookie } });
+    assert.equal(session.status, 200);
+    const csrf = await fetch(base + "/api/jobs", { method: "POST", headers: { cookie, origin: "https://evil.example", "content-type": "application/json" }, body: "{}" });
+    assert.equal(csrf.status, 403);
     const unauthorized = await fetch(base + "/api/jobs");
     assert.equal(unauthorized.status, 401);
     const headers = { authorization: "Bearer " + token, "content-type": "application/json" };
@@ -45,6 +58,11 @@ test("local API protects owner routes and creates validated jobs", async () => {
     assert.equal(engineData.engines[0].status, "not_configured");
     const script = await fetch(base + "/api/jobs/" + job.id + "/generate-script", { method: "POST", headers, body: "{}" });
     assert.equal(script.status, 503, "script generation must remain disabled without provider credentials");
+    const logout = await fetch(base + "/auth/logout", { method: "POST", headers: { cookie, origin: base, "content-type": "application/json" }, body: "{}" });
+    assert.equal(logout.status, 200);
+    const expiredSession = await fetch(base + "/api/session", { headers: { cookie } });
+    assert.equal(expiredSession.status, 401);
+
   } finally {
     child.kill("SIGTERM");
     await rm(dir, { recursive: true, force: true });
