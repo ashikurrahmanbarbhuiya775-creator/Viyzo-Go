@@ -8,6 +8,7 @@ import { Transform } from "node:stream";
 import { dirname, resolve } from "node:path";
 import { createVideoJob, approveJob, completeStage } from "./src/domain/video-job.mjs";
 import { validateResearchReport } from "./src/domain/research-safety.mjs";
+import { validateVisualAssets } from "./src/domain/visual-evidence-safety.mjs";
 import { getTextEngineStatus, generateScriptDraft, generateMetadataDraft } from "./src/providers/openai-compatible.mjs";
 import { getCountryResearchStatus, researchCountry } from "./src/providers/country-research.mjs";
 import { extensionForMime, inspectVideo, autoEditVideo, qualityCheckVideo, getMediaEngineStatus, MEDIA_LIMITS } from "./src/providers/ffmpeg-pipeline.mjs";
@@ -194,6 +195,24 @@ const server = http.createServer(async (req, res) => {
       store.jobs.unshift(created.job);
       await saveStore(store);
       return send(res, 201, { job: created.job });
+    }
+
+    const visualAssetsMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/visual-assets$/i);
+    if (req.method === "POST" && visualAssetsMatch) {
+      const [, id] = visualAssetsMatch;
+      const store = await readStore();
+      const index = store.jobs.findIndex(job => job.id === id);
+      if (index < 0) return send(res, 404, { error: "job_not_found" });
+      const job = store.jobs[index];
+      if (job.ownerApproved) return send(res, 409, { error: "job_already_approved" });
+      const body = await readBody(req);
+      const result = validateVisualAssets(body.assets, job.countryCode);
+      if (!result.ok) return send(res, 422, { error: "visual_evidence_validation_failed", validation: result });
+      job.visualAssets = body.assets;
+      job.visualEvidenceReport = result;
+      job.updatedAt = new Date().toISOString();
+      await saveStore(store);
+      return send(res, 200, { job, validation: result, message: "Visual asset provenance, country match, usage rights and disclosures passed structural checks. Human review is still required." });
     }
 
     const sourceSuffix = "/source";
