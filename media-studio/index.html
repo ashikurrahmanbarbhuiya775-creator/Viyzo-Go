@@ -95,6 +95,18 @@ function renderProjects(){
   document.getElementById("recent").innerHTML=content;
   document.getElementById("libraryList").innerHTML=content;
 }
+document.getElementById("libraryList").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-quality]");if(!b)return;
+  if(!apiConnected){alert("Connect the owner API first.");return;}
+  b.disabled=true;b.textContent="Checking…";
+  document.getElementById("mediaStatus").textContent="Checking resolution, audio track, duration and video integrity…";
+  try{
+    const data=await apiFetch("/api/jobs/"+b.dataset.quality+"/quality-check",{method:"POST",body:"{}"});
+    document.getElementById("mediaStatus").textContent=(data.qualityReport.passed?"Quality check passed.":"Quality check failed: ")+JSON.stringify(data.qualityReport.checks);
+    await refreshJobs();
+  }catch(err){document.getElementById("mediaStatus").textContent="Quality check: "+err.message;}
+  finally{b.disabled=false;b.textContent="Quality check";}
+});
 async function refreshJobs(){if(!apiConnected)return;try{const data=await apiFetch("/api/jobs");projects.splice(0,projects.length,...data.jobs);renderProjects();}catch(e){document.getElementById("apiStatus").textContent="API error: "+e.message;}}
 async function connectApi(){const password=document.getElementById("ownerPassword").value;try{await apiFetch("/auth/login",{method:"POST",body:JSON.stringify({password})});document.getElementById("ownerPassword").value="";await apiFetch("/api/session");apiConnected=true;document.getElementById("apiStatus").textContent="Owner session active";await refreshJobs();const e=await apiFetch("/api/engines");const list=[...e.engines,...e.otherEngines];document.getElementById("engineRows").innerHTML=list.map(x=>"<tr><td>"+escapeHtml(x.name||x.id)+"</td><td><span class='pill'>"+escapeHtml(x.status)+"</span></td><td>"+escapeHtml(x.note||"Provider adapter status")+"</td></tr>").join("");}catch(err){apiConnected=false;document.getElementById("apiStatus").textContent="Login failed: "+err.message;}}
 async function restoreOwnerSession(){document.getElementById("apiUrl").value=location.origin;try{await apiFetch("/api/session");apiConnected=true;document.getElementById("apiStatus").textContent="Owner session restored";await refreshJobs();const e=await apiFetch("/api/engines");const list=[...e.engines,...e.otherEngines];document.getElementById("engineRows").innerHTML=list.map(x=>"<tr><td>"+escapeHtml(x.name||x.id)+"</td><td><span class='pill'>"+escapeHtml(x.status)+"</span></td><td>"+escapeHtml(x.note||"Provider adapter status")+"</td></tr>").join("");}catch{apiConnected=false;document.getElementById("apiStatus").textContent="Sign in required";}}
