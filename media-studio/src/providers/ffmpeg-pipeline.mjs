@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir, stat, chmod } from "node:fs/promises";
 import { dirname, extname, resolve, sep } from "node:path";
 
 const run = promisify(execFile);
@@ -70,7 +70,8 @@ export async function autoEditVideo(sourcePath, jobId) {
   if (!input.startsWith(ROOT + sep)) throw new Error("media_path_outside_storage");
   const output = mediaPath(jobId, "-edited.mp4");
   const thumbnail = mediaPath(jobId, "-thumbnail.jpg");
-  await mkdir(ROOT, { recursive: true });
+  await mkdir(ROOT, { recursive: true, mode: 0o700 });
+  await chmod(ROOT, 0o700);
   const probe = await inspectVideo(input);
   const args = [
     "-y", "-i", input,
@@ -87,6 +88,7 @@ export async function autoEditVideo(sourcePath, jobId) {
     "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
     "-q:v", "3", thumbnail
   ], { timeout: 60000, maxBuffer: 1024 * 1024, windowsHide: true });
+  await Promise.all([chmod(output, 0o600), chmod(thumbnail, 0o600)]);
   const [editedInfo, thumbnailInfo] = await Promise.all([stat(output), stat(thumbnail)]);
   return {
     outputPath: output,
