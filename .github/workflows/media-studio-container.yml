@@ -1,0 +1,34 @@
+name: Media Studio Container Checks
+
+on:
+  push:
+    branches: [media-studio-isolated]
+    paths:
+      - "media-studio/**"
+      - ".github/workflows/media-studio-container.yml"
+  pull_request:
+    paths:
+      - "media-studio/**"
+      - ".github/workflows/media-studio-container.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Run Media Studio tests
+        working-directory: media-studio
+        run: npm test
+      - name: Build production container
+        run: docker build -t viyzo-media-studio:test ./media-studio
