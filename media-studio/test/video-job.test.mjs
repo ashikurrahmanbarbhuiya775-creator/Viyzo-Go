@@ -4,11 +4,13 @@ import { createVideoJob, completeStage, approveJob } from "../src/domain/video-j
 
 const valid = { prompt: "Create a factual video about Japan", countryCode: "JP", language: "en", durationSeconds: 300, presenter: "fictional" };
 
-test("creates a valid draft job", () => {
+test("creates a valid draft job with exactly one country-scoped Page destination", () => {
   const result = createVideoJob(valid, "2026-11-05T00:00:00.000Z", "job-1");
   assert.equal(result.ok, true);
   assert.equal(result.job.status, "draft");
   assert.equal(result.job.publishState, "locked");
+  assert.deepEqual(result.job.targetPage, { countryCode: "JP", status: "not_connected", policy: "one_page_per_country" });
+  assert.equal("targetPageNumber" in result.job, false);
 });
 
 test("rejects invalid country and duration", () => {
@@ -25,8 +27,7 @@ test("requires stages in order", () => {
 });
 
 test("requires quality check before owner approval", () => {
-  const job = createVideoJob(valid).job;
-  const result = approveJob(job, "owner-1");
+  const result = approveJob(createVideoJob(valid).job, "owner-1");
   assert.equal(result.ok, false);
   assert.equal(result.error, "quality_check_incomplete");
 });
@@ -43,16 +44,4 @@ test("publishing remains gated after approval", () => {
   assert.equal(approved.ok, true);
   assert.equal(approved.job.ownerApproved, true);
   assert.equal(approved.job.publishState, "ready_for_explicit_publish_action");
-});
-
-test("stores a numbered destination Page slot for the selected country", () => {
-  const result = createVideoJob({ ...valid, targetPageNumber: 3 });
-  assert.equal(result.ok, true);
-  assert.deepEqual(result.job.targetPage, { number: 3, countryCode: "JP", status: "not_connected" });
-  assert.equal(result.job.publishState, "locked");
-});
-
-test("rejects invalid destination Page numbers", () => {
-  assert.equal(createVideoJob({ ...valid, targetPageNumber: 0 }).ok, false);
-  assert.equal(createVideoJob({ ...valid, targetPageNumber: 51 }).ok, false);
 });
