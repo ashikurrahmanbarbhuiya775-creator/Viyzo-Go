@@ -1,14 +1,19 @@
 import http from "node:http";
+import { createWriteStream, createReadStream } from "node:fs";
 import { randomUUID, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile, unlink, stat } from "node:fs/promises";
+import { pipeline } from "node:stream/promises";
+import { Transform } from "node:stream";
 import { dirname, resolve } from "node:path";
 import { createVideoJob, approveJob, completeStage } from "./src/domain/video-job.mjs";
 import { getTextEngineStatus, generateScriptDraft, generateMetadataDraft } from "./src/providers/openai-compatible.mjs";
+import { extensionForMime, inspectVideo, autoEditVideo, getMediaEngineStatus, MEDIA_LIMITS } from "./src/providers/ffmpeg-pipeline.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 8787);
 const OWNER_TOKEN = process.env.OWNER_ACCESS_TOKEN || "";
 const DATA_FILE = resolve(process.env.DATA_FILE || "./data/jobs.json");
+const MEDIA_DIR = resolve(dirname(DATA_FILE), "media");
 const MAX_BODY = 32 * 1024;
 
 if (OWNER_TOKEN.length < 32) {
@@ -81,7 +86,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/engines") {
       return send(res, 200, {
-        engines: [getTextEngineStatus()],
+        engines: [getTextEngineStatus(), await getMediaEngineStatus()],
         otherEngines: ["research", "voice", "video_render", "auto_edit", "metadata", "thumbnail", "publishing"]
           .map(id => ({ id, status: "not_configured" }))
       });
@@ -98,6 +103,86 @@ const server = http.createServer(async (req, res) => {
       store.jobs.unshift(created.job);
       await saveStore(store);
       return send(res, 201, { job: created.job });
+    }
+
+    const sourceMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/source$/i);
+    if (sourceMatch && req.method === "PUT") {
+      const [, id] = sourceMatch;
+      const store = await readStore();
+      const index = store.jobs.findIndex(job => job.id === id);
+      if (index < 0) return send(res, 404, { error: "job_not_found" });
+      const mime = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+      const extension = extensionForMime(mime);
+      if (!extension) return send(res, 415, { error: "unsupported_video_type", allowed: ["video/mp4", "video/webm", "video/quicktime"] });
+      const declaredLength = Number(req.headers["content-length"] || 0);
+      if (declaredLength > MEDIA_LIMITS.maxSourceBytes) return send(res, 413, { error: "video_too_large" });
+      await mkdir(MEDIA_DIR, { recursive: true });
+      const key = id + "-source" + extension;
+      const finalPath = resolve(MEDIA_DIR, key);
+      const tempPath = finalPath + ".part";
+      let received = 0;
+      const limiter = new Transform({
+        transform(chunk, encoding, callback) {
+          received += chunk.length;
+          if (received > MEDIA_LIMITS.maxSourceBytes) callback(Object.assign(new Error("video_too_large"), { status: 413 }));
+          else callback(null, chunk);
+        }
+      });
+      try {
+        await pipeline(req, limiter, createWriteStream(tempPath, { flags: "wx", mode: 0o600 }));
+        const probe = await inspectVideo(tempPath);
+        await rename(tempPath, finalPath);
+        store.jobs[index].sourceMedia = { storageKey: key, mime, bytes: probe.bytes, durationSeconds: probe.durationSeconds, width: probe.width, height: probe.height, hasAudio: probe.hasAudio };
+        store.jobs[index].updatedAt = new Date().toISOString();
+        await saveStore(store);
+        return send(res, 201, { job: store.jobs[index], message: "Source video stored and validated." });
+      } catch (error) {
+        await unlink(tempPath).catch(() => {});
+        await unlink(finalPath).catch(() => {});
+        return send(res, error.status || 422, { error: error.status ? error.message : "video_validation_failed" });
+      }
+    }
+
+    const editMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/auto-edit$/i);
+    if (editMatch && req.method === "POST") {
+      const [, id] = editMatch;
+      const store = await readStore();
+      const index = store.jobs.findIndex(job => job.id === id);
+      if (index < 0) return send(res, 404, { error: "job_not_found" });
+      const source = store.jobs[index].sourceMedia;
+      if (!source?.storageKey || !/^[0-9a-f-]{36}-source\\.(mp4|webm|mov)$/i.test(source.storageKey)) return send(res, 409, { error: "source_video_required" });
+      try {
+        const result = await autoEditVideo(resolve(MEDIA_DIR, source.storageKey), id);
+        store.jobs[index].processedMedia = {
+          editedKey: id + "-edited.mp4",
+          thumbnailKey: id + "-thumbnail.jpg",
+          editedBytes: result.editedBytes,
+          thumbnailBytes: result.thumbnailBytes,
+          profile: result.profile,
+          status: "ready_for_owner_review"
+        };
+        store.jobs[index].updatedAt = new Date().toISOString();
+        await saveStore(store);
+        return send(res, 200, { job: store.jobs[index] });
+      } catch {
+        return send(res, 422, { error: "auto_edit_failed", hint: "Check that FFmpeg is installed and the source video is valid." });
+      }
+    }
+
+    const mediaMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/(thumbnail|edited-video)$/i);
+    if (mediaMatch && req.method === "GET") {
+      const [, id, kind] = mediaMatch;
+      const store = await readStore();
+      const job = store.jobs.find(item => item.id === id);
+      if (!job?.processedMedia) return send(res, 404, { error: "processed_media_not_found" });
+      const key = kind === "thumbnail" ? job.processedMedia.thumbnailKey : job.processedMedia.editedKey;
+      if (key !== id + (kind === "thumbnail" ? "-thumbnail.jpg" : "-edited.mp4")) return send(res, 404, { error: "media_not_found" });
+      const filePath = resolve(MEDIA_DIR, key);
+      try {
+        const info = await stat(filePath);
+        res.writeHead(200, { "content-type": kind === "thumbnail" ? "image/jpeg" : "video/mp4", "content-length": info.size, "cache-control": "private, no-store", "x-content-type-options": "nosniff" });
+        return createReadStream(filePath).pipe(res);
+      } catch { return send(res, 404, { error: "media_file_missing" }); }
     }
 
     const scriptMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/generate-script$/i);
