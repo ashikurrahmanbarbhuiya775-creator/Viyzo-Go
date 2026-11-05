@@ -209,6 +209,44 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+
+    const postProduceMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/post-produce$/i);
+    if (postProduceMatch && req.method === "POST") {
+      const [, id] = postProduceMatch;
+      const store = await readStore();
+      const index = store.jobs.findIndex(job => job.id === id);
+      if (index < 0) return send(res, 404, { error: "job_not_found" });
+      const job = store.jobs[index];
+      if (job.ownerApproved) return send(res, 409, { error: "job_already_approved" });
+      const source = job.sourceMedia;
+      const validSourceKey = [id + "-source.mp4", id + "-source.webm", id + "-source.mov"].includes(source?.storageKey);
+      if (!validSourceKey) return send(res, 409, { error: "source_video_required" });
+      try {
+        const result = await autoEditVideo(resolve(MEDIA_DIR, source.storageKey), id);
+        const qualityReport = await qualityCheckVideo(result.outputPath);
+        job.processedMedia = {
+          editedKey: id + "-edited.mp4",
+          thumbnailKey: id + "-thumbnail.jpg",
+          editedBytes: result.editedBytes,
+          thumbnailBytes: result.thumbnailBytes,
+          profile: result.profile,
+          status: "ready_for_owner_review"
+        };
+        job.qualityReport = qualityReport;
+        job.updatedAt = qualityReport.checkedAt;
+        await saveStore(store);
+        return send(res, qualityReport.passed ? 200 : 422, {
+          job,
+          qualityReport,
+          message: qualityReport.passed
+            ? "Auto-edit, thumbnail and technical quality check completed."
+            : "The edited file was created but did not pass technical quality checks."
+        });
+      } catch {
+        return send(res, 422, { error: "post_production_failed", hint: "Check FFmpeg installation and the source video." });
+      }
+    }
+
     const editSuffix = "/auto-edit";
     const editId = url.pathname.startsWith(sourcePrefix) && url.pathname.endsWith(editSuffix) ? url.pathname.slice(sourcePrefix.length, -editSuffix.length) : "";
     if (req.method === "POST" && /^[0-9a-f-]{36}$/i.test(editId)) {
