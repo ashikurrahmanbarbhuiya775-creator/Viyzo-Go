@@ -32,7 +32,7 @@ test("dashboard inline JavaScript parses and exposes engine actions", async () =
   assert.match(html, /quality-check/);
   assert.match(html, /data-postproduce=/);
   assert.match(html, /post-produce/);
-  assert.match(html, /Auto-produce \+ quality/);
+  assert.ok(html.includes("Auto-produce + quality"));
   assert.match(html, /page-settings/);
   assert.match(html, /settingLanguage/);
   assert.match(html, /saveSettings/);
