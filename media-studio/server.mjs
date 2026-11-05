@@ -23,6 +23,15 @@ function authorized(req) {
   const b = Buffer.from(OWNER_TOKEN);
   return a.length === b.length && timingSafeEqual(a, b);
 }
+function sendHtml(res, html) {
+  res.writeHead(200, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "content-security-policy": "default-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'"
+  });
+  res.end(html);
+}
 function send(res, status, data) {
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
@@ -62,7 +71,7 @@ async function readBody(req) {
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, "http://" + (req.headers.host || "localhost"));
-    if (req.method === "GET" && url.pathname === "/health") {
+    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {\n      return sendHtml(res, await readFile(resolve("index.html"), "utf8"));\n    }\n    if (req.method === "GET" && url.pathname === "/health") {
       return send(res, 200, { ok: true, service: "viyzo-media-studio-api", mode: "local-demo" });
     }
     if (!authorized(req)) return send(res, 401, { error: "unauthorized" });
