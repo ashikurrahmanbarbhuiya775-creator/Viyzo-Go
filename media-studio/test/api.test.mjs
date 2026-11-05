@@ -137,3 +137,33 @@ test("FFmpeg upload, auto-edit and thumbnail endpoints work end-to-end", { skip:
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("owner password login works without a static bearer token", async () => {
+  const probe = createServer();
+  await new Promise(resolve => probe.listen(0, "127.0.0.1", resolve));
+  const port = probe.address().port;
+  await new Promise(resolve => probe.close(resolve));
+  const dir = await mkdtemp(join(tmpdir(), "viyzo-owner-only-test-"));
+  const child = spawn(process.execPath, ["server.mjs"], {
+    cwd: new URL("..", import.meta.url).pathname,
+    env: { ...process.env, HOST: "127.0.0.1", PORT: String(port), OWNER_ACCESS_TOKEN: "", OWNER_PASSWORD_HASH: hashOwnerPassword("owner-password-without-bearer"), DATA_FILE: join(dir, "jobs.json") },
+    stdio: "ignore"
+  });
+  const base = "http://127.0.0.1:" + port;
+  try {
+    let ready = false;
+    for (let i = 0; i < 50; i++) {
+      try { if ((await fetch(base + "/health")).ok) { ready = true; break; } } catch {}
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    assert.equal(ready, true, "password-only owner configuration should start the API");
+    const login = await fetch(base + "/auth/login", { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ password: "owner-password-without-bearer" }) });
+    assert.equal(login.status, 200);
+    const cookie = login.headers.get("set-cookie").split(";")[0];
+    const jobs = await fetch(base + "/api/jobs", { headers: { cookie } });
+    assert.equal(jobs.status, 200);
+  } finally {
+    child.kill("SIGTERM");
+    await rm(dir, { recursive: true, force: true });
+  }
+});
