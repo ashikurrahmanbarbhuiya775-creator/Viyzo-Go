@@ -197,7 +197,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 201, { job: created.job });
     }
 
-    const visualAssetsMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/visual-assets$/i);
+    const visualAssetsMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/visual-assets$/i);
     if (req.method === "POST" && visualAssetsMatch) {
       const [, id] = visualAssetsMatch;
       const store = await readStore();
