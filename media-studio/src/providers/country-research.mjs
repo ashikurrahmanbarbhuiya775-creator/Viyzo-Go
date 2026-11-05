@@ -1,3 +1,5 @@
+import { validateResearchReport } from "../domain/research-safety.mjs";
+
 const API = "https://api.openai.com/v1/responses";
 
 export function getCountryResearchStatus(env = process.env) {
