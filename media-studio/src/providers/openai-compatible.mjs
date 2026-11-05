@@ -71,3 +71,43 @@ export async function generateScriptDraft(job, env = process.env) {
     clearTimeout(timeout);
   }
 }
+
+export async function generateMetadataDraft(job, env = process.env) {
+  const status = getTextEngineStatus(env);
+  if (!status.configured) return { ok: false, error: "text_engine_not_configured" };
+  const base = (env.OPENAI_BASE_URL || DEFAULT_BASE_URL).replace(/\\/+$/, "");
+  const endpoint = base.endsWith("/chat/completions") ? base : base + "/chat/completions";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45000);
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "authorization": "Bearer " + env.OPENAI_API_KEY, "content-type": "application/json" },
+      body: JSON.stringify({
+        model: env.OPENAI_MODEL,
+        temperature: 0.35,
+        messages: [
+          { role: "system", content: "Create accurate, non-clickbait video publishing metadata. Do not invent factual claims. Return valid JSON only with keys title, description, tags (array of strings), thumbnailText, thumbnailImagePrompt. The image prompt must describe an original, non-infringing 16:9 thumbnail and must not depict real public figures or logos." },
+          { role: "user", content: JSON.stringify({ brief: job.prompt, country_code: job.countryCode, language: job.language, duration_seconds: job.durationSeconds, script: job.scriptDraft || null }) }
+        ],
+        response_format: { type: "json_object" }
+      }),
+      signal: controller.signal
+    });
+    if (!response.ok) return { ok: false, error: "provider_error", status: response.status };
+    const payload = await response.json();
+    const raw = payload?.choices?.[0]?.message?.content;
+    if (typeof raw !== "string" || !raw.trim()) return { ok: false, error: "empty_provider_response" };
+    let metadata;
+    try { metadata = JSON.parse(raw); } catch { return { ok: false, error: "invalid_provider_json" }; }
+    if (typeof metadata.title !== "string" || typeof metadata.description !== "string" ||
+        !Array.isArray(metadata.tags) || typeof metadata.thumbnailImagePrompt !== "string") {
+      return { ok: false, error: "invalid_metadata_schema" };
+    }
+    return { ok: true, metadata, model: env.OPENAI_MODEL };
+  } catch (error) {
+    return { ok: false, error: error.name === "AbortError" ? "provider_timeout" : "provider_unavailable" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
