@@ -202,7 +202,8 @@ document.getElementById("libraryList").addEventListener("click",async e=>{
   b.disabled=true;b.textContent="Preparing…";
   try{
     const data=await apiFetch("/api/jobs/"+b.dataset.package+"/prepare-package",{method:"POST",body:"{}"});
-    document.getElementById("researchPreview").textContent=JSON.stringify(data.job.researchReport,null,2);\n    document.getElementById("scriptPreview").textContent=JSON.stringify({script:data.job.scriptDraft,metadata:data.job.metadataDraft},null,2);
+    document.getElementById("researchPreview").textContent=JSON.stringify(data.job.researchReport,null,2);
+    document.getElementById("scriptPreview").textContent=JSON.stringify({script:data.job.scriptDraft,metadata:data.job.metadataDraft},null,2);
     alert("Script and video metadata drafts are ready. Presenter generation and final video rendering are separate steps.");
     await refreshJobs();
   }catch(err){alert("Production package: "+err.message);}
