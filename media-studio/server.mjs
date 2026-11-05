@@ -16,6 +16,20 @@ const OWNER_TOKEN = process.env.OWNER_ACCESS_TOKEN || "";
 const OWNER_PASSWORD_HASH = process.env.OWNER_PASSWORD_HASH || "";
 const ownerAuth = createOwnerAuth(OWNER_PASSWORD_HASH);
 const SESSION_COOKIE = "viyzo_owner";
+const loginFailures = new Map();
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_FAILURES = 8;
+function loginBlocked(ip) {
+  const record = loginFailures.get(ip);
+  if (!record || record.resetAt <= Date.now()) { loginFailures.delete(ip); return false; }
+  return record.count >= LOGIN_MAX_FAILURES;
+}
+function recordLoginFailure(ip) {
+  const now = Date.now();
+  const record = loginFailures.get(ip);
+  if (!record || record.resetAt <= now) loginFailures.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+  else record.count += 1;
+}
 const DATA_FILE = resolve(process.env.DATA_FILE || "./data/jobs.json");
 const MEDIA_DIR = resolve(dirname(DATA_FILE), "media");
 const MAX_BODY = 32 * 1024;
@@ -107,8 +121,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/auth/login") {
       if (req.headers.origin && req.headers.origin !== url.origin) return send(res, 403, { error: "origin_not_allowed" });
       if (!ownerAuth.configured) return send(res, 503, { error: "owner_password_login_not_configured", hint: "Create OWNER_PASSWORD_HASH using scripts/hash-owner-password.mjs." });
+      const loginIp = req.socket.remoteAddress || "unknown";
+      if (loginBlocked(loginIp)) return send(res, 429, { error: "login_rate_limited", retryAfterSeconds: 900 });
       const body = await readBody(req);
-      if (!ownerAuth.verifyPassword(body.password)) return send(res, 401, { error: "invalid_credentials" });
+      if (!ownerAuth.verifyPassword(body.password)) { recordLoginFailure(loginIp); return send(res, 401, { error: "invalid_credentials" }); }
+      loginFailures.delete(loginIp);
       const token = ownerAuth.createSession();
       res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "set-cookie": sessionCookie(token), "x-content-type-options": "nosniff" });
       return res.end(JSON.stringify({ ok: true, owner: "owner", expiresInSeconds: OWNER_SESSION_TTL_SECONDS }));
