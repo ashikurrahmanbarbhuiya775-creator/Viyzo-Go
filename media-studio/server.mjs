@@ -9,6 +9,7 @@ import { dirname, resolve } from "node:path";
 import { createVideoJob, approveJob, completeStage } from "./src/domain/video-job.mjs";
 import { getTextEngineStatus, generateScriptDraft, generateMetadataDraft } from "./src/providers/openai-compatible.mjs";
 import { extensionForMime, inspectVideo, autoEditVideo, getMediaEngineStatus, MEDIA_LIMITS } from "./src/providers/ffmpeg-pipeline.mjs";
+import { getAvatarEngineStatus, generateAvatarVideo, getAvatarVideoStatus } from "./src/providers/heygen-avatar.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 8787);
@@ -144,8 +145,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/engines") {
       return send(res, 200, {
         engines: [getTextEngineStatus(), await getMediaEngineStatus()],
-        otherEngines: ["research", "voice", "video_render", "auto_edit", "metadata", "thumbnail", "publishing"]
-          .map(id => ({ id, status: "not_configured" }))
+        otherEngines: [getAvatarEngineStatus(), ...["research", "voice", "video_render", "publishing"].map(id => ({ id, status: "not_configured" }))]
       });
     }
     if (req.method === "GET" && url.pathname === "/api/jobs") {
@@ -295,6 +295,43 @@ const server = http.createServer(async (req, res) => {
       store.jobs[index].updatedAt = new Date().toISOString();
       await saveStore(store);
       return send(res, 200, { job: store.jobs[index] });
+    }
+
+    const presenterMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/generate-presenter$/i);
+    if (presenterMatch && req.method === "POST") {
+      const [, id] = presenterMatch;
+      const store = await readStore();
+      const index = store.jobs.findIndex(job => job.id === id);
+      if (index < 0) return send(res, 404, { error: "job_not_found" });
+      const job = store.jobs[index];
+      if (job.ownerApproved) return send(res, 409, { error: "job_already_approved" });
+      if (job.presenter !== "fictional") return send(res, 409, { error: "fictional_presenter_required" });
+      if (job.presenterVideo?.videoId && ["processing", "pending", "waiting"].includes(job.presenterVideo.status)) return send(res, 409, { error: "presenter_video_already_processing" });
+      const generated = await generateAvatarVideo(job);
+      if (!generated.ok) {
+        const status = generated.error === "avatar_engine_not_configured" ? 503 : generated.error === "approved_script_required" ? 409 : 502;
+        return send(res, status, { error: generated.error, providerStatus: generated.status });
+      }
+      job.presenterVideo = { videoId: generated.videoId, status: generated.status, provider: generated.provider, requestedAt: new Date().toISOString() };
+      job.updatedAt = new Date().toISOString();
+      await saveStore(store);
+      return send(res, 202, { job, message: "AI presenter video submitted to HeyGen. Provider rendering is asynchronous." });
+    }
+
+    const presenterStatusMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/presenter-status$/i);
+    if (presenterStatusMatch && req.method === "GET") {
+      const [, id] = presenterStatusMatch;
+      const store = await readStore();
+      const index = store.jobs.findIndex(job => job.id === id);
+      if (index < 0) return send(res, 404, { error: "job_not_found" });
+      const videoId = store.jobs[index].presenterVideo?.videoId;
+      if (!videoId) return send(res, 409, { error: "presenter_video_not_requested" });
+      const status = await getAvatarVideoStatus(videoId);
+      if (!status.ok) return send(res, status.error === "avatar_engine_not_configured" ? 503 : 502, { error: status.error });
+      store.jobs[index].presenterVideo = { ...store.jobs[index].presenterVideo, status: status.status, videoUrl: status.videoUrl, thumbnailUrl: status.thumbnailUrl, checkedAt: new Date().toISOString() };
+      store.jobs[index].updatedAt = new Date().toISOString();
+      await saveStore(store);
+      return send(res, 200, { presenterVideo: store.jobs[index].presenterVideo });
     }
 
     const match = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/(stage|approve)$/i);
