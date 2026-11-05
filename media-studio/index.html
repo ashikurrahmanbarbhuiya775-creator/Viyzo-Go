@@ -90,11 +90,40 @@ function renderProjects(){
     return '<article class="project-card"><div class="project-head"><div><div class="label">VIDEO PROJECT</div><h3>'+escapeHtml(p.prompt||p.topic||"Untitled video")+'</h3><p>'+escapeHtml(p.countryCode||p.country||"—")+' · '+escapeHtml(p.language||"—")+'</p></div><span class="pill">'+escapeHtml(p.status||"Draft")+'</span></div>'+
     (p.id?'<div class="action-group"><div class="action-title">01 · SCRIPT & PACKAGE</div><div class="action-buttons"><button class="btn" data-package="'+id+'">Prepare package</button><button class="btn secondary" data-script="'+id+'">Script</button><button class="btn secondary" data-metadata="'+id+'">Metadata</button></div></div>'+
     '<div class="action-group"><div class="action-title">02 · AI PRESENTER</div><div class="action-buttons"><button class="btn secondary" data-presenter="'+id+'">Generate presenter</button><button class="btn secondary" data-presenter-status="'+id+'">Check status</button></div></div>'+
-    '<div class="action-group"><div class="action-title">03 · VIDEO FILE & QUALITY</div><div class="action-buttons"><label class="btn secondary file-button">Upload source<input type="file" accept="video/mp4,video/webm,video/quicktime" data-upload="'+id+'" aria-label="Upload source video"></label><button class="btn" data-edit="'+id+'">Auto-edit</button><button class="btn secondary" data-quality="'+id+'">Quality check</button></div></div>':'<p>Demo preview only. Connect the private API to enable actions.</p>')+'</article>';
+    '<div class="action-group"><div class="action-title">03 · VIDEO FILE & QUALITY</div><div class="action-buttons"><label class="btn secondary file-button">Upload source<input type="file" accept="video/mp4,video/webm,video/quicktime" data-upload="'+id+'" aria-label="Upload source video"></label><button class="btn" data-postproduce="'+id+'">Auto-produce + quality</button><button class="btn secondary" data-edit="'+id+'">Auto-edit only</button><button class="btn secondary" data-quality="'+id+'">Quality check</button></div></div>':'<p>Demo preview only. Connect the private API to enable actions.</p>')+'</article>';
   }).join("")+'</div>':'<p>No video projects yet. Create your first project.</p>';
   document.getElementById("recent").innerHTML=content;
   document.getElementById("libraryList").innerHTML=content;
 }
+
+document.getElementById("libraryList").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-postproduce]");if(!b)return;
+  if(!apiConnected){alert("Connect the owner API first.");return;}
+  const id=b.dataset.postproduce;
+  b.disabled=true;b.textContent="Producing…";
+  document.getElementById("mediaStatus").textContent="Auto-editing video, extracting thumbnail and checking output quality. Please wait…";
+  try{
+    const data=await apiFetch("/api/jobs/"+id+"/post-produce",{method:"POST",body:"{}"});
+    const c=apiConfig();
+    const [thumb,video]=await Promise.all([
+      fetch(c.url+"/api/jobs/"+id+"/thumbnail",{credentials:"include"}),
+      fetch(c.url+"/api/jobs/"+id+"/edited-video",{credentials:"include"})
+    ]);
+    if(!thumb.ok||!video.ok)throw new Error("processed_media_download_failed");
+    const thumbUrl=URL.createObjectURL(await thumb.blob());
+    const videoUrl=URL.createObjectURL(await video.blob());
+    const image=document.getElementById("thumbnailResult");
+    if(image.dataset.objectUrl)URL.revokeObjectURL(image.dataset.objectUrl);
+    image.src=thumbUrl;image.dataset.objectUrl=thumbUrl;image.style.display="block";
+    const link=document.getElementById("editedDownload");
+    if(link.dataset.objectUrl)URL.revokeObjectURL(link.dataset.objectUrl);
+    link.href=videoUrl;link.dataset.objectUrl=videoUrl;link.style.display="inline-block";
+    const q=data.qualityReport;
+    document.getElementById("mediaStatus").textContent=(q.passed?"Production complete · Quality passed. ":"Production complete · Quality failed. ")+JSON.stringify(q.checks);
+    await refreshJobs();
+  }catch(err){document.getElementById("mediaStatus").textContent="Production failed: "+err.message;}
+  finally{b.disabled=false;b.textContent="Auto-produce + quality";}
+});
 document.getElementById("libraryList").addEventListener("click",async e=>{
   const b=e.target.closest("[data-quality]");if(!b)return;
   if(!apiConnected){alert("Connect the owner API first.");return;}
