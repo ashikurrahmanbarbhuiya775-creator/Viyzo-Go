@@ -66,7 +66,7 @@ test("local API protects owner routes and creates validated jobs", async () => {
     assert.equal(presenterOff.status, 503, "presenter provider must stay off without API credentials");
     const packageDraft = await fetch(base + "/api/jobs/" + job.id + "/prepare-package", { method: "POST", headers, body: "{}" });
     assert.equal(packageDraft.status, 503, "full package must stay disabled without text provider credentials");
-    assert.equal((await packageDraft.json()).error, "text_engine_not_configured");
+    assert.equal((await packageDraft.json()).error, "research_engine_not_configured", "research must run before package drafting");
     const script = await fetch(base + "/api/jobs/" + job.id + "/generate-script", { method: "POST", headers, body: "{}" });
     assert.equal(script.status, 503, "script generation must remain disabled without provider credentials");
     const logout = await fetch(base + "/auth/logout", { method: "POST", headers: { cookie, origin: base, "content-type": "application/json" }, body: "{}" });
