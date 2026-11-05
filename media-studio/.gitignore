@@ -1,5 +1,7 @@
-# Local-only secrets and runtime data
 .env
+.env.*
+!.env.example
+!.env.production.example
 data/
-*.log
 node_modules/
+*.log
