@@ -8,7 +8,7 @@ import { Transform } from "node:stream";
 import { dirname, resolve } from "node:path";
 import { createVideoJob, approveJob, completeStage } from "./src/domain/video-job.mjs";
 import { getTextEngineStatus, generateScriptDraft, generateMetadataDraft } from "./src/providers/openai-compatible.mjs";
-import { extensionForMime, inspectVideo, autoEditVideo, getMediaEngineStatus, MEDIA_LIMITS } from "./src/providers/ffmpeg-pipeline.mjs";
+import { extensionForMime, inspectVideo, autoEditVideo, qualityCheckVideo, getMediaEngineStatus, MEDIA_LIMITS } from "./src/providers/ffmpeg-pipeline.mjs";
 import { getAvatarEngineStatus, generateAvatarVideo, getAvatarVideoStatus } from "./src/providers/heygen-avatar.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
@@ -371,6 +371,27 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { presenterVideo: store.jobs[index].presenterVideo });
     }
 
+
+    const qualityMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/quality-check$/i);
+    if (qualityMatch && req.method === "POST") {
+      const [, id] = qualityMatch;
+      const store = await readStore();
+      const index = store.jobs.findIndex(job => job.id === id);
+      if (index < 0) return send(res, 404, { error: "job_not_found" });
+      if (store.jobs[index].ownerApproved) return send(res, 409, { error: "job_already_approved" });
+      const media = store.jobs[index].processedMedia;
+      if (!media || media.status !== "ready_for_owner_review") return send(res, 409, { error: "edited_video_required" });
+      try {
+        const report = await qualityCheckVideo(resolve(MEDIA_DIR, media.editedKey));
+        store.jobs[index].qualityReport = report;
+        store.jobs[index].updatedAt = report.checkedAt;
+        await saveStore(store);
+        return send(res, report.passed ? 200 : 422, { job: store.jobs[index], qualityReport: report });
+      } catch {
+        return send(res, 422, { error: "quality_check_failed", hint: "The edited video could not be inspected." });
+      }
+    }
+
     const match = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/(stage|approve)$/i);
     if (match && req.method === "POST") {
       const [, id, action] = match;
@@ -378,6 +399,7 @@ const server = http.createServer(async (req, res) => {
       const index = store.jobs.findIndex(job => job.id === id);
       if (index < 0) return send(res, 404, { error: "job_not_found" });
       const body = await readBody(req);
+      if (action === "stage" && body.stage === "quality_check" && store.jobs[index].qualityReport?.passed !== true) return send(res, 409, { error: "passed_quality_report_required" });
       const result = action === "stage"
         ? completeStage(store.jobs[index], body.stage)
         : approveJob(store.jobs[index], "local-owner");
