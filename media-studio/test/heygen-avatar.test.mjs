@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getAvatarEngineStatus, generateAvatarVideo, getAvatarVideoStatus } from "../src/providers/heygen-avatar.mjs";
+import { getAvatarEngineStatus, generateAvatarVideo, getAvatarVideoStatus, isTrustedAvatarVideoUrl } from "../src/providers/heygen-avatar.mjs";
 
 const env = { HEYGEN_API_KEY: "test-secret", HEYGEN_AVATAR_ID: "fictional-avatar-id", HEYGEN_VOICE_ID: "natural-voice-id" };
 
@@ -51,4 +51,14 @@ test("HeyGen presenter status is polled using the provider video id", async () =
 test("HeyGen rejects invalid provider video ids", async () => {
   const result = await getAvatarVideoStatus("../unsafe", env);
   assert.deepEqual(result, { ok: false, error: "invalid_avatar_video_id" });
+});
+
+test("presenter video import accepts only trusted HTTPS HeyGen media URLs", () => {
+  assert.equal(isTrustedAvatarVideoUrl("https://files.heygen.com/video.mp4"), true);
+  assert.equal(isTrustedAvatarVideoUrl("https://heygen.com/video.mp4"), true);
+  assert.equal(isTrustedAvatarVideoUrl("http://files.heygen.com/video.mp4"), false);
+  assert.equal(isTrustedAvatarVideoUrl("https://evil.example/video.mp4"), false);
+  assert.equal(isTrustedAvatarVideoUrl("https://files.heygen.com.evil.example/video.mp4"), false);
+  assert.equal(isTrustedAvatarVideoUrl("https://user:pass@files.heygen.com/video.mp4"), false);
+  assert.equal(isTrustedAvatarVideoUrl("https://files.heygen.com:8443/video.mp4"), false);
 });
