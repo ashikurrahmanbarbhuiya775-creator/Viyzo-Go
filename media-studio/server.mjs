@@ -3,6 +3,7 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createVideoJob, approveJob, completeStage } from "./src/domain/video-job.mjs";
+import { getTextEngineStatus, generateScriptDraft } from "./src/providers/openai-compatible.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 8787);
@@ -64,7 +65,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/health") return send(res, 200, { ok: true, service: "viyzo-media-studio-api", mode: "local-demo" });
     if (!authorized(req)) return send(res, 401, { error: "unauthorized" });
 
-    if (req.method === "GET" && url.pathname === "/api/jobs") {
+    if (req.method === "GET" && url.pathname === "/api/engines") {\n      return send(res, 200, { engines: [getTextEngineStatus()], otherEngines: ["research","voice","video_render","auto_edit","thumbnail","publishing"].map(id => ({ id, status: "not_configured" })) });\n    }\n    if (req.method === "GET" && url.pathname === "/api/jobs") {
       const store = await readStore();
       return send(res, 200, { jobs: store.jobs });
     }
