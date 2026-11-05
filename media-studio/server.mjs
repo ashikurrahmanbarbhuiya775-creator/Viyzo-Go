@@ -105,9 +105,11 @@ const server = http.createServer(async (req, res) => {
       return send(res, 201, { job: created.job });
     }
 
-    const sourceMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/source$/i);
-    if (sourceMatch && req.method === "PUT") {
-      const [, id] = sourceMatch;
+    const sourceSuffix = "/source";
+    const sourcePrefix = "/api/jobs/";
+    const sourceId = url.pathname.startsWith(sourcePrefix) && url.pathname.endsWith(sourceSuffix) ? url.pathname.slice(sourcePrefix.length, -sourceSuffix.length) : "";
+    if (req.method === "PUT" && /^[0-9a-f-]{36}$/i.test(sourceId)) {
+      const id = sourceId;
       const store = await readStore();
       const index = store.jobs.findIndex(job => job.id === id);
       if (index < 0) return send(res, 404, { error: "job_not_found" });
@@ -143,9 +145,10 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    const editMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/auto-edit$/i);
-    if (editMatch && req.method === "POST") {
-      const [, id] = editMatch;
+    const editSuffix = "/auto-edit";
+    const editId = url.pathname.startsWith(sourcePrefix) && url.pathname.endsWith(editSuffix) ? url.pathname.slice(sourcePrefix.length, -editSuffix.length) : "";
+    if (req.method === "POST" && /^[0-9a-f-]{36}$/i.test(editId)) {
+      const id = editId;
       const store = await readStore();
       const index = store.jobs.findIndex(job => job.id === id);
       if (index < 0) return send(res, 404, { error: "job_not_found" });
@@ -169,9 +172,11 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    const mediaMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/(thumbnail|edited-video)$/i);
-    if (mediaMatch && req.method === "GET") {
-      const [, id, kind] = mediaMatch;
+    const mediaSuffix = url.pathname.endsWith("/thumbnail") ? "thumbnail" : url.pathname.endsWith("/edited-video") ? "edited-video" : "";
+    const mediaId = mediaSuffix && url.pathname.startsWith(sourcePrefix) ? url.pathname.slice(sourcePrefix.length, -(mediaSuffix.length + 1)) : "";
+    if (req.method === "GET" && /^[0-9a-f-]{36}$/i.test(mediaId)) {
+      const id = mediaId;
+      const kind = mediaSuffix;
       const store = await readStore();
       const job = store.jobs.find(item => item.id === id);
       if (!job?.processedMedia) return send(res, 404, { error: "processed_media_not_found" });
