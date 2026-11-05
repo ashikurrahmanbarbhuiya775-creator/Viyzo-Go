@@ -15,9 +15,12 @@ export function getTextEngineStatus(env = process.env) {
 }
 
 export async function generateScriptDraft(job, env = process.env) {
-  if (!validateResearchReport(job.researchReport, job.countryCode).ok) return { ok: false, error: "verified_research_required" };
+  // Report provider availability first so the API can return 503 when no
+  // paid/remote text provider is configured. Once configured, research is
+  // a separate hard prerequisite and returns a conflict until verified.
   const status = getTextEngineStatus(env);
   if (!status.configured) return { ok: false, error: "text_engine_not_configured" };
+  if (!validateResearchReport(job.researchReport, job.countryCode).ok) return { ok: false, error: "verified_research_required" };
 
   const base = (env.OPENAI_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
   const endpoint = base.endsWith("/chat/completions") ? base : base + "/chat/completions";
