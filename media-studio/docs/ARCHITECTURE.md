@@ -35,6 +35,7 @@ All files in this folder are independent of the Android app and Viyzo Worker web
 - `PUT /api/jobs/:id/source` — upload raw MP4/WebM/MOV bytes with the matching Content-Type; server probes the media before storing.
 - `POST /api/jobs/:id/auto-edit` — run local FFmpeg edit and extract a thumbnail after source upload.
 - `POST /api/jobs/:id/post-produce` — one-step FFmpeg edit, thumbnail extraction and technical quality report; output remains in owner review.
+- `POST /api/jobs/:id/import-presenter-video` — after HeyGen reports `completed`, securely imports the MP4 into the private media directory, validates it with FFprobe and makes it the source for post-production. Only HTTPS URLs on HeyGen-owned hostnames are accepted; redirects are rejected, and file size is capped.
 - `POST /api/jobs/:id/quality-check` — inspect the edited output; owner approval is blocked until the technical report passes.
 - `GET /api/jobs/:id/thumbnail` and `/edited-video` — authenticated media retrieval.
 - `POST /api/jobs/:id/generate-script` — explicitly request a script draft using the optional server-side OpenAI-compatible adapter. Returns 503 when not configured.
