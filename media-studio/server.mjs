@@ -2,7 +2,7 @@ import http from "node:http";
 import { createWriteStream, createReadStream } from "node:fs";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { createOwnerAuth, OWNER_SESSION_TTL_SECONDS } from "./src/security/owner-auth.mjs";
-import { mkdir, readFile, rename, writeFile, unlink, stat } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile, unlink, stat, chmod } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
 import { dirname, resolve } from "node:path";
@@ -159,7 +159,8 @@ const server = http.createServer(async (req, res) => {
       if (!extension) return send(res, 415, { error: "unsupported_video_type", allowed: ["video/mp4", "video/webm", "video/quicktime"] });
       const declaredLength = Number(req.headers["content-length"] || 0);
       if (declaredLength > MEDIA_LIMITS.maxSourceBytes) return send(res, 413, { error: "video_too_large" });
-      await mkdir(MEDIA_DIR, { recursive: true });
+      await mkdir(MEDIA_DIR, { recursive: true, mode: 0o700 });
+      await chmod(MEDIA_DIR, 0o700);
       const key = id + "-source" + extension;
       const finalPath = resolve(MEDIA_DIR, key);
       const tempPath = finalPath + ".part";
