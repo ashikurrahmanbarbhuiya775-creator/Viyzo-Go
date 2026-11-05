@@ -1,0 +1,26 @@
+name: Media Studio isolated checks
+
+on:
+  push:
+    branches: [media-studio-isolated]
+    paths:
+      - "media-studio/**"
+      - ".github/workflows/media-studio-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "media-studio/**"
+      - ".github/workflows/media-studio-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: media-studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm run check
