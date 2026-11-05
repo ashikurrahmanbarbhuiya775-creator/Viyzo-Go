@@ -1,6 +1,7 @@
 import http from "node:http";
 import { createWriteStream, createReadStream } from "node:fs";
 import { randomUUID, timingSafeEqual } from "node:crypto";
+import { createOwnerAuth, OWNER_SESSION_TTL_SECONDS } from "./src/security/owner-auth.mjs";
 import { mkdir, readFile, rename, writeFile, unlink, stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
@@ -12,6 +13,9 @@ import { extensionForMime, inspectVideo, autoEditVideo, getMediaEngineStatus, ME
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 8787);
 const OWNER_TOKEN = process.env.OWNER_ACCESS_TOKEN || "";
+const OWNER_PASSWORD_HASH = process.env.OWNER_PASSWORD_HASH || "";
+const ownerAuth = createOwnerAuth(OWNER_PASSWORD_HASH);
+const SESSION_COOKIE = "viyzo_owner";
 const DATA_FILE = resolve(process.env.DATA_FILE || "./data/jobs.json");
 const MEDIA_DIR = resolve(dirname(DATA_FILE), "media");
 const MAX_BODY = 32 * 1024;
@@ -21,12 +25,30 @@ if (OWNER_TOKEN.length < 32) {
   process.exit(1);
 }
 
-function authorized(req) {
+function cookieValue(req, name) {
+  const cookies = String(req.headers.cookie || "").split(";");
+  for (const item of cookies) {
+    const index = item.indexOf("=");
+    if (index > 0 && item.slice(0, index).trim() === name) return item.slice(index + 1).trim();
+  }
+  return "";
+}
+function authMethod(req) {
   const header = req.headers.authorization || "";
   const candidate = header.startsWith("Bearer ") ? header.slice(7) : "";
   const a = Buffer.from(candidate);
   const b = Buffer.from(OWNER_TOKEN);
-  return a.length === b.length && timingSafeEqual(a, b);
+  if (OWNER_TOKEN.length >= 32 && a.length === b.length && timingSafeEqual(a, b)) return "bearer";
+  return ownerAuth.isSessionValid(cookieValue(req, SESSION_COOKIE)) ? "session" : "";
+}
+function csrfValid(req, url, method) {
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return true;
+  if (authMethod(req) !== "session") return true;
+  const origin = req.headers.origin;
+  return typeof origin === "string" && origin === url.origin;
+}
+function sessionCookie(token, maxAge = OWNER_SESSION_TTL_SECONDS) {
+  return SESSION_COOKIE + "=" + token + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + maxAge + (process.env.NODE_ENV === "production" ? "; Secure" : "");
 }
 function sendHtml(res, html) {
   res.writeHead(200, {
@@ -82,7 +104,25 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/health") {
       return send(res, 200, { ok: true, service: "viyzo-media-studio-api", mode: "local-demo" });
     }
-    if (!authorized(req)) return send(res, 401, { error: "unauthorized" });
+    if (req.method === "POST" && url.pathname === "/auth/login") {
+      if (req.headers.origin && req.headers.origin !== url.origin) return send(res, 403, { error: "origin_not_allowed" });
+      if (!ownerAuth.configured) return send(res, 503, { error: "owner_password_login_not_configured", hint: "Create OWNER_PASSWORD_HASH using scripts/hash-owner-password.mjs." });
+      const body = await readBody(req);
+      if (!ownerAuth.verifyPassword(body.password)) return send(res, 401, { error: "invalid_credentials" });
+      const token = ownerAuth.createSession();
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "set-cookie": sessionCookie(token), "x-content-type-options": "nosniff" });
+      return res.end(JSON.stringify({ ok: true, owner: "owner", expiresInSeconds: OWNER_SESSION_TTL_SECONDS }));
+    }
+    if (req.method === "GET" && url.pathname === "/api/session") {
+      return authMethod(req) ? send(res, 200, { authenticated: true, owner: "owner" }) : send(res, 401, { authenticated: false });
+    }
+    if (!authMethod(req)) return send(res, 401, { error: "unauthorized" });
+    if (!csrfValid(req, url, req.method)) return send(res, 403, { error: "origin_not_allowed" });
+    if (req.method === "POST" && url.pathname === "/auth/logout") {
+      ownerAuth.revokeSession(cookieValue(req, SESSION_COOKIE));
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "set-cookie": sessionCookie("", 0) });
+      return res.end(JSON.stringify({ ok: true }));
+    }
 
     if (req.method === "GET" && url.pathname === "/api/engines") {
       return send(res, 200, {
