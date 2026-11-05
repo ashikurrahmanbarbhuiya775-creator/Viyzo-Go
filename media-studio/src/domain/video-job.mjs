@@ -13,17 +13,19 @@ export function validateJobInput(input = {}) {
   const language = typeof input.language === "string" ? input.language.trim() : "";
   const durationSeconds = Number(input.durationSeconds ?? 300);
   const presenter = input.presenter ?? "fictional";
+  const targetPageNumber = Number(input.targetPageNumber ?? 1);
 
   if (prompt.length < 5 || prompt.length > 2000) errors.push("prompt must be 5–2000 characters");
   if (!COUNTRIES.test(countryCode)) errors.push("countryCode must be an ISO-style 2-letter code");
   if (!LANGUAGES.test(language)) errors.push("language must be a language tag such as en or bn-IN");
   if (!Number.isInteger(durationSeconds) || durationSeconds < 30 || durationSeconds > 900) errors.push("durationSeconds must be 30–900");
   if (!["fictional", "none"].includes(presenter)) errors.push("presenter must be fictional or none");
+  if (!Number.isInteger(targetPageNumber) || targetPageNumber < 1 || targetPageNumber > 50) errors.push("targetPageNumber must be 1–50");
 
   return {
     ok: errors.length === 0,
     errors,
-    value: { prompt, countryCode, language, durationSeconds, presenter }
+    value: { prompt, countryCode, language, durationSeconds, presenter, targetPageNumber }
   };
 }
 
@@ -37,6 +39,7 @@ export function createVideoJob(input, now = new Date().toISOString(), id = crypt
     completedStages: [],
     ownerApproved: false,
     publishState: "locked",
+    targetPage: { number: result.value.targetPageNumber, countryCode: result.value.countryCode, status: "not_connected" },
     createdAt: now,
     updatedAt: now
   };
