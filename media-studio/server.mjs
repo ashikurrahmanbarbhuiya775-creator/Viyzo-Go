@@ -297,7 +297,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { job: store.jobs[index] });
     }
 
-    const presenterMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/generate-presenter$/i);
+    const presenterMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/generate-presenter$/i);
     if (presenterMatch && req.method === "POST") {
       const [, id] = presenterMatch;
       const store = await readStore();
@@ -318,7 +318,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 202, { job, message: "AI presenter video submitted to HeyGen. Provider rendering is asynchronous." });
     }
 
-    const presenterStatusMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/presenter-status$/i);
+    const presenterStatusMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/presenter-status$/i);
     if (presenterStatusMatch && req.method === "GET") {
       const [, id] = presenterStatusMatch;
       const store = await readStore();
