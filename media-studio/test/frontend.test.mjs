@@ -25,4 +25,7 @@ test("dashboard inline JavaScript parses and exposes engine actions", async () =
   assert.match(html, /restoreOwnerSession/);
   assert.match(html, /credentials:"include"/);
   assert.match(html, /logoutApi/);
+  assert.match(html, /data-presenter/);
+  assert.match(html, /generate-presenter/);
+  assert.match(html, /presenter-status/);
 });
