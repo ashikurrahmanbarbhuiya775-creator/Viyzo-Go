@@ -59,6 +59,9 @@ test("local API protects owner routes and creates validated jobs", async () => {
     const presenterEngine = engineData.otherEngines.find(engine => engine.id === "ai_presenter");
     assert.equal(presenterEngine.status, "not_configured");
     assert.equal(presenterEngine.lipSync, true);
+    const importBeforeRender = await fetch(base + "/api/jobs/" + job.id + "/import-presenter-video", { method: "POST", headers, body: "{}" });
+    assert.equal(importBeforeRender.status, 409, "presenter import must wait for a completed render");
+    assert.equal((await importBeforeRender.json()).error, "presenter_video_not_completed");
     const presenterOff = await fetch(base + "/api/jobs/" + job.id + "/generate-presenter", { method: "POST", headers, body: "{}" });
     assert.equal(presenterOff.status, 503, "presenter provider must stay off without API credentials");
     const packageDraft = await fetch(base + "/api/jobs/" + job.id + "/prepare-package", { method: "POST", headers, body: "{}" });
