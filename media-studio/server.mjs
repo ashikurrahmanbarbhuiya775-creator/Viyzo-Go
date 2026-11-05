@@ -160,7 +160,8 @@ const server = http.createServer(async (req, res) => {
       if (index < 0) return send(res, 404, { error: "job_not_found" });
       if (store.jobs[index].ownerApproved) return send(res, 409, { error: "job_already_approved" });
       const source = store.jobs[index].sourceMedia;
-      if (!source?.storageKey || !/^[0-9a-f-]{36}-source\\.(mp4|webm|mov)$/i.test(source.storageKey)) return send(res, 409, { error: "source_video_required" });
+      const validSourceKey = [id + "-source.mp4", id + "-source.webm", id + "-source.mov"].includes(source?.storageKey);
+      if (!validSourceKey) return send(res, 409, { error: "source_video_required" });
       try {
         const result = await autoEditVideo(resolve(MEDIA_DIR, source.storageKey), id);
         store.jobs[index].processedMedia = {
