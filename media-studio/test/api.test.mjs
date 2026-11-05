@@ -141,6 +141,18 @@ test("FFmpeg upload, auto-edit and thumbnail endpoints work end-to-end", { skip:
     const video = await fetch(base + "/api/jobs/" + job.id + "/edited-video", { headers: { authorization: "Bearer " + token } });
     assert.equal(video.status, 200);
     assert.match(video.headers.get("content-type"), /video\/mp4/);
+    const secondCreated = await fetch(base + "/api/jobs", { method: "POST", headers, body: JSON.stringify({ prompt: "Create a short educational video about Japan", countryCode: "JP", language: "en", durationSeconds: 300, presenter: "fictional" }) });
+    assert.equal(secondCreated.status, 201);
+    const { job: secondJob } = await secondCreated.json();
+    const secondUpload = await fetch(base + "/api/jobs/" + secondJob.id + "/source", { method: "PUT", headers: { authorization: "Bearer " + token, "content-type": "video/mp4" }, body: sourceBytes });
+    assert.equal(secondUpload.status, 201);
+    const postProduced = await fetch(base + "/api/jobs/" + secondJob.id + "/post-produce", { method: "POST", headers, body: "{}" });
+    assert.equal(postProduced.status, 200);
+    const postProductionData = await postProduced.json();
+    assert.equal(postProductionData.qualityReport.passed, true);
+    assert.equal(postProductionData.job.processedMedia.status, "ready_for_owner_review");
+    assert.equal(postProductionData.job.qualityReport.passed, true);
+
   } finally {
     child.kill("SIGTERM");
     await rm(dir, { recursive: true, force: true });
