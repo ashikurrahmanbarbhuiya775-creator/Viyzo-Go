@@ -10,6 +10,6 @@
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
     "test": "node --test",
-    "check": "node --check server.mjs && node --check src/security/owner-auth.mjs && node --check scripts/hash-owner-password.mjs && sh -n scripts/backup-media.sh && sh -n scripts/restore-media.sh && node --check src/providers/openai-compatible.mjs && node --check src/providers/country-research.mjs && node --check src/providers/ffmpeg-pipeline.mjs && node --check src/providers/heygen-avatar.mjs && node --test"
+    "check": "node --check server.mjs && node --check src/security/owner-auth.mjs && node --check scripts/hash-owner-password.mjs && sh -n scripts/backup-media.sh && sh -n scripts/restore-media.sh && node --check src/providers/openai-compatible.mjs && node --check src/providers/country-research.mjs && node --check src/domain/research-safety.mjs && node --check src/providers/ffmpeg-pipeline.mjs && node --check src/providers/heygen-avatar.mjs && node --test"
   }
 }
