@@ -38,6 +38,7 @@ test("publishing remains gated after approval", () => {
     assert.equal(result.ok, true);
     job = result.job;
   }
+  job.qualityReport = { passed: true, checks: { hdResolution: true, audioTrack: true } };
   const approved = approveJob(job, "owner-1");
   assert.equal(approved.ok, true);
   assert.equal(approved.job.ownerApproved, true);
