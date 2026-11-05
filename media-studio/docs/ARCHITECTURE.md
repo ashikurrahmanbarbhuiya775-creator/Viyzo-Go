@@ -14,7 +14,8 @@ All files in this folder are independent of the Android app and Viyzo Worker web
 - Ordered pipeline stage progression and explicit owner approval gate.
 - Owner-authenticated raw source upload (MP4/WebM/MOV), FFprobe validation and 1 GiB upload limit.
 - Private local media vault with mode 0700 directories and mode 0600 media files on POSIX systems; not remote cloud storage.
-- FFmpeg auto-edit to 1080p/30fps H.264/AAC with audio loudness normalization, plus 1280×720 JPEG thumbnail extraction.\n- Optional HeyGen avatar provider adapter: fictional presenter, natural speech and lip-synced video generation from script; asynchronous status polling. OFF unless server-side API key and avatar ID are configured.
+- FFmpeg auto-edit to 1080p/30fps H.264/AAC with audio loudness normalization, plus 1280×720 JPEG thumbnail extraction.
+- Technical quality gate checks the edited file is readable, HD (at least 1280×720), has an audio track, and is within the 15-minute duration limit. Owner approval requires a passed quality report.\n- Optional HeyGen avatar provider adapter: fictional presenter, natural speech and lip-synced video generation from script; asynchronous status polling. OFF unless server-side API key and avatar ID are configured.
 - Authenticated edited-video and thumbnail retrieval endpoints.
 - No social upload or publish endpoint exists yet.
 
@@ -25,6 +26,7 @@ All files in this folder are independent of the Android app and Viyzo Worker web
 - `POST /api/jobs` — create a draft. Body: `prompt, countryCode, language, durationSeconds, presenter`.
 - `PUT /api/jobs/:id/source` — upload raw MP4/WebM/MOV bytes with the matching Content-Type; server probes the media before storing.
 - `POST /api/jobs/:id/auto-edit` — run local FFmpeg edit and extract a thumbnail after source upload.
+- `POST /api/jobs/:id/quality-check` — inspect the edited output; owner approval is blocked until the technical report passes.
 - `GET /api/jobs/:id/thumbnail` and `/edited-video` — authenticated media retrieval.
 - `POST /api/jobs/:id/generate-script` — explicitly request a script draft using the optional server-side OpenAI-compatible adapter. Returns 503 when not configured.
 - `POST /api/jobs/:id/generate-metadata` — explicitly request title, description, tags and a thumbnail-image prompt from the same optional text engine.
