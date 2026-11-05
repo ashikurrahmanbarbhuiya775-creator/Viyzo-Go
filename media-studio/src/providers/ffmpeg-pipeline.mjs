@@ -100,4 +100,27 @@ export async function autoEditVideo(sourcePath, jobId) {
   };
 }
 
+
+export async function qualityCheckVideo(filePath) {
+  const media = await inspectVideo(filePath);
+  const checks = {
+    readableVideo: media.durationSeconds > 0 && media.width > 0 && media.height > 0,
+    hdResolution: media.width >= 1280 && media.height >= 720,
+    audioTrack: media.hasAudio,
+    durationWithinLimit: media.durationSeconds <= 900
+  };
+  return {
+    passed: Object.values(checks).every(Boolean),
+    checks,
+    media: {
+      durationSeconds: media.durationSeconds,
+      width: media.width,
+      height: media.height,
+      hasAudio: media.hasAudio,
+      bytes: media.bytes
+    },
+    checkedAt: new Date().toISOString()
+  };
+}
+
 export const MEDIA_LIMITS = Object.freeze({ maxSourceBytes: MAX_SOURCE_BYTES, maxDurationSeconds: 1800 });
