@@ -1,14 +1,13 @@
-# Country and numbered Page routing
+# One Facebook Page per country
 
-Each video job stores a destination Page slot (1–50) together with the selected country ISO code. The slot is a routing label chosen by the owner, not a real Facebook Page connection or numeric Facebook Page ID.
+Viyzo Media Hub uses a simple country-based destination model: **one connected Facebook Page per country**. The owner does not choose or remember numbered Page slots.
 
-Workflow:
-1. The owner enters a country, language, prompt, and destination Page slot.
-2. The job stores the country + Page slot as its intended destination.
-3. The owner connects their own Facebook account and authorized Pages through the official Meta OAuth flow (not implemented yet).
-4. The owner maps each country/slot pair to a real Page returned by Meta.
-5. The system can publish only after the video passes checks, receives owner approval, and the owner explicitly confirms publishing.
+- Each video job stores its destination country ISO code.
+- The system resolves that country to the single Page connected for it in the owner's Meta account.
+- If no Page is connected for that country, the job remains in the private library and reports `not_connected`.
+- The country-to-Page mapping must be created from Pages returned by the official Meta OAuth/API flow. A country code is not itself a Facebook Page ID.
+- Meta OAuth, Page discovery/mapping, secure token storage, and actual publishing are not configured yet.
+- Automatic creation and upload into the Viyzo private media library is a separate pipeline stage from publishing to Facebook. The current scaffold does not yet provide an end-to-end automatic render-and-library-upload pipeline.
+- Public publishing remains locked until technical quality checks pass, the owner approves the finished video, and the owner explicitly confirms publishing.
 
-Content guidance: prompts should result in factual, clearly attributed civic or public-information videos. Do not fabricate government achievements, imply government sponsorship, impersonate officials, or present opinion as fact. Positive framing is fine when substantiated and clearly distinguished from commentary.
-
-Current limitation: this commit stores the routing intent only. Meta OAuth, Page discovery/mapping, token storage, and actual publishing are not configured. No video is sent to Facebook by this feature.
+Content guidance: civic/public-information videos must be factual and attributed. Do not fabricate government achievements, imply government sponsorship, impersonate officials, or present opinion as fact. Positive framing is fine when substantiated and clearly distinguished from commentary.
