@@ -19,6 +19,7 @@ All files in this folder are independent of the Android app and Viyzo Worker web
 - `GET /api/jobs` — owner-authenticated job list.
 - `POST /api/jobs` — create a draft. Body: `prompt, countryCode, language, durationSeconds, presenter`.
 - `POST /api/jobs/:id/generate-script` — explicitly request a script draft using the optional server-side OpenAI-compatible adapter. Returns 503 when not configured.
+- `POST /api/jobs/:id/generate-metadata` — explicitly request title, description, tags and a thumbnail-image prompt from the same optional text engine.
 - `POST /api/jobs/:id/stage` — complete the next stage in order. Body: `{ "stage": "research" }`.
 - `POST /api/jobs/:id/approve` — owner approval only after quality_check.
 
@@ -31,7 +32,7 @@ Send `Authorization: Bearer <OWNER_ACCESS_TOKEN>` on all API routes except healt
 4. Bind to localhost for local testing. Do not expose this server to the public internet.
 
 ## Optional text engine adapter
-The script adapter supports OpenAI-compatible Chat Completions endpoints. Configure `OPENAI_API_KEY`, `OPENAI_MODEL`, and optionally `OPENAI_BASE_URL` on the server only. This may incur provider charges; check pricing and configure spend limits before use. No provider is configured by default. The browser never receives the provider key. Generated script drafts are not fact-checked automatically and must be verified against independent sources.
+The script adapter supports OpenAI-compatible Chat Completions endpoints. Configure `OPENAI_API_KEY`, `OPENAI_MODEL`, and optionally `OPENAI_BASE_URL` on the server only. This may incur provider charges; check pricing and configure spend limits before use. No provider is configured by default. The browser never receives the provider key. Script and metadata generation are separate manual actions and may incur provider usage charges. Generated script drafts are not fact-checked automatically and must be verified against independent sources.
 
 ## Production blockers (must be solved before launch)
 - Replace JSON storage with a separate Media Studio database and migrations.
