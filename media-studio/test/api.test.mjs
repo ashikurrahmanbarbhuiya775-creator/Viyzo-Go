@@ -50,3 +50,60 @@ test("local API protects owner routes and creates validated jobs", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+
+import { spawnSync } from "node:child_process";
+import { writeFile } from "node:fs/promises";
+
+const ffmpegAvailable = !spawnSync("ffmpeg", ["-version"], { encoding: "utf8" }).error;
+
+test("FFmpeg upload, auto-edit and thumbnail endpoints work end-to-end", { skip: !ffmpegAvailable }, async () => {
+  const probe = createServer();
+  await new Promise(resolve => probe.listen(0, "127.0.0.1", resolve));
+  const port = probe.address().port;
+  await new Promise(resolve => probe.close(resolve));
+  const dir = await mkdtemp(join(tmpdir(), "viyzo-ffmpeg-test-"));
+  const token = "test-owner-token-0123456789-abcdefghijkl";
+  const child = spawn(process.execPath, ["server.mjs"], {
+    cwd: new URL("..", import.meta.url).pathname,
+    env: { ...process.env, HOST: "127.0.0.1", PORT: String(port), OWNER_ACCESS_TOKEN: token, DATA_FILE: join(dir, "jobs.json") },
+    stdio: "ignore"
+  });
+  const base = "http://127.0.0.1:" + port;
+  const headers = { authorization: "Bearer " + token, "content-type": "application/json" };
+  const source = join(dir, "source.mp4");
+  try {
+    const generated = spawnSync("ffmpeg", [
+      "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=15",
+      "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=44100",
+      "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", source
+    ], { encoding: "utf8", timeout: 60000 });
+    assert.equal(generated.status, 0, generated.stderr);
+    let ready = false;
+    for (let i = 0; i < 50; i++) {
+      try { if ((await fetch(base + "/health")).ok) { ready = true; break; } } catch {}
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    assert.equal(ready, true);
+    const created = await fetch(base + "/api/jobs", { method: "POST", headers, body: JSON.stringify({ prompt: "Create an educational video about Japan", countryCode: "JP", language: "en", durationSeconds: 300, presenter: "fictional" }) });
+    assert.equal(created.status, 201);
+    const { job } = await created.json();
+    const sourceBytes = await (await import("node:fs/promises")).readFile(source);
+    const uploaded = await fetch(base + "/api/jobs/" + job.id + "/source", { method: "PUT", headers: { authorization: "Bearer " + token, "content-type": "video/mp4" }, body: sourceBytes });
+    assert.equal(uploaded.status, 201);
+    const edited = await fetch(base + "/api/jobs/" + job.id + "/auto-edit", { method: "POST", headers, body: "{}" });
+    assert.equal(edited.status, 200);
+    const editedData = await edited.json();
+    assert.equal(editedData.job.processedMedia.status, "ready_for_owner_review");
+    const thumbnail = await fetch(base + "/api/jobs/" + job.id + "/thumbnail", { headers: { authorization: "Bearer " + token } });
+    assert.equal(thumbnail.status, 200);
+    assert.match(thumbnail.headers.get("content-type"), /image\/jpeg/);
+    assert.ok(Number(thumbnail.headers.get("content-length")) > 100);
+    const video = await fetch(base + "/api/jobs/" + job.id + "/edited-video", { headers: { authorization: "Bearer " + token } });
+    assert.equal(video.status, 200);
+    assert.match(video.headers.get("content-type"), /video\/mp4/);
+  } finally {
+    child.kill("SIGTERM");
+    await rm(dir, { recursive: true, force: true });
+  }
+});
