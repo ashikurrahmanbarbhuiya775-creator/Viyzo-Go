@@ -52,7 +52,7 @@
 <div class="field"><label><input type="checkbox" id="settingCaptions" checked> Include subtitles in production plan</label></div>
 <div class="field"><label><input type="checkbox" id="settingThumbnail" checked> Prepare a thumbnail brief</label></div>
 <div class="field"><label><input type="checkbox" id="settingFactCheck" checked> Require source review for factual videos</label></div>
-<p class="label">These preferences guide the workflow; they do not claim to create media until the relevant engines are connected.</p>
+<p class="label">Preferences are saved on this device. Resolution, captions and fact-check options are planning preferences until their production engines are connected.</p>
 </div>
 <div class="card"><h2>Publishing & safety</h2>
 <div class="step done"><span class="num">✓</span><div><b>Owner approval required</b><small>Always on · cannot be disabled</small></div></div>
@@ -76,7 +76,7 @@ const settingsDefaults={language:"English",duration:"300",resolution:"1080",capt
 function readSettings(){try{return {...settingsDefaults,...JSON.parse(localStorage.getItem("viyzoMediaSettings")||"{}")};}catch{return {...settingsDefaults};}}
 function applySettings(s){document.getElementById("settingLanguage").value=s.language;document.getElementById("settingDuration").value=s.duration;document.getElementById("settingResolution").value=s.resolution;document.getElementById("settingCaptions").checked=!!s.captions;document.getElementById("settingThumbnail").checked=!!s.thumbnail;document.getElementById("settingFactCheck").checked=!!s.factCheck;}
 function collectSettings(){return {language:document.getElementById("settingLanguage").value,duration:document.getElementById("settingDuration").value,resolution:document.getElementById("settingResolution").value,captions:document.getElementById("settingCaptions").checked,thumbnail:document.getElementById("settingThumbnail").checked,factCheck:document.getElementById("settingFactCheck").checked};}
-applySettings(readSettings());
+const initialSettings=readSettings();applySettings(initialSettings);document.getElementById("language").value=initialSettings.language;document.getElementById("duration").value=initialSettings.duration;
 document.getElementById("saveSettings").addEventListener("click",()=>{const s=collectSettings();try{localStorage.setItem("viyzoMediaSettings",JSON.stringify(s));document.getElementById("settingsStatus").textContent="Preferences saved on this device.";document.getElementById("language").value=s.language;document.getElementById("duration").value=s.duration;}catch{document.getElementById("settingsStatus").textContent="Could not save preferences in this browser."; }});
 document.getElementById("resetSettings").addEventListener("click",()=>{applySettings(settingsDefaults);try{localStorage.removeItem("viyzoMediaSettings");}catch{}document.getElementById("settingsStatus").textContent="Default preferences restored.";});
 
