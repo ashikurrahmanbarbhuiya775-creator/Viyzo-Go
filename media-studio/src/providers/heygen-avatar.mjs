@@ -83,3 +83,15 @@ export async function getAvatarVideoStatus(videoId, env = process.env) {
     return { ok: false, error: error.name === "AbortError" ? "avatar_provider_timeout" : "avatar_provider_unavailable" };
   }
 }
+
+export function isTrustedAvatarVideoUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" &&
+      !url.username && !url.password &&
+      (!url.port || url.port === "443") &&
+      (url.hostname === "heygen.com" || url.hostname.endsWith(".heygen.com"));
+  } catch {
+    return false;
+  }
+}
