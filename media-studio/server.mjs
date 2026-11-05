@@ -35,8 +35,8 @@ const DATA_FILE = resolve(process.env.DATA_FILE || "./data/jobs.json");
 const MEDIA_DIR = resolve(dirname(DATA_FILE), "media");
 const MAX_BODY = 32 * 1024;
 
-if (OWNER_TOKEN.length < 32) {
-  console.error("Refusing to start: set OWNER_ACCESS_TOKEN to a random secret of at least 32 characters.");
+if (OWNER_TOKEN.length < 32 && !ownerAuth.configured) {
+  console.error("Refusing to start: configure OWNER_PASSWORD_HASH or a 32+ character OWNER_ACCESS_TOKEN.");
   process.exit(1);
 }
 
