@@ -11,13 +11,19 @@ All files in this folder are independent of the Android app and Viyzo Worker web
 - Request body limit, constant-time token comparison, no-store responses and atomic local file replacement.
 - Domain validation for country code, language, duration and presenter choice.
 - Ordered pipeline stage progression and explicit owner approval gate.
-- No upload or publish endpoint exists yet.
+- Owner-authenticated raw source upload (MP4/WebM/MOV), FFprobe validation and 1 GiB upload limit.
+- FFmpeg auto-edit to 1080p/30fps H.264/AAC with audio loudness normalization, plus 1280×720 JPEG thumbnail extraction.
+- Authenticated edited-video and thumbnail retrieval endpoints.
+- No social upload or publish endpoint exists yet.
 
 ## API
 - `GET /health` — basic health check (no sensitive information).
-- `GET /api/engines` — owner-authenticated engine configuration status.
+- `GET /api/engines` — owner-authenticated text and local FFmpeg engine status.
 - `GET /api/jobs` — owner-authenticated job list.
 - `POST /api/jobs` — create a draft. Body: `prompt, countryCode, language, durationSeconds, presenter`.
+- `PUT /api/jobs/:id/source` — upload raw MP4/WebM/MOV bytes with the matching Content-Type; server probes the media before storing.
+- `POST /api/jobs/:id/auto-edit` — run local FFmpeg edit and extract a thumbnail after source upload.
+- `GET /api/jobs/:id/thumbnail` and `/edited-video` — authenticated media retrieval.
 - `POST /api/jobs/:id/generate-script` — explicitly request a script draft using the optional server-side OpenAI-compatible adapter. Returns 503 when not configured.
 - `POST /api/jobs/:id/generate-metadata` — explicitly request title, description, tags and a thumbnail-image prompt from the same optional text engine.
 - `POST /api/jobs/:id/stage` — complete the next stage in order. Body: `{ "stage": "research" }`.
@@ -26,7 +32,7 @@ All files in this folder are independent of the Android app and Viyzo Worker web
 Send `Authorization: Bearer <OWNER_ACCESS_TOKEN>` on all API routes except health.
 
 ## Local run
-1. Install Node.js 20 or newer.
+1. Install Node.js 20 or newer and FFmpeg/FFprobe.
 2. Copy `.env.example` to `.env`, choose a long random owner token, and export the values in your shell. The server does not load .env files automatically.
 3. Run `npm test` and `npm start` from this folder.
 4. Bind to localhost for local testing. Do not expose this server to the public internet.
