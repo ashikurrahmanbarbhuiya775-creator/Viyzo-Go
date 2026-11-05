@@ -14,13 +14,13 @@ All files in this folder are independent of the Android app and Viyzo Worker web
 - Ordered pipeline stage progression and explicit owner approval gate.
 - Owner-authenticated raw source upload (MP4/WebM/MOV), FFprobe validation and 1 GiB upload limit.
 - Private local media vault with mode 0700 directories and mode 0600 media files on POSIX systems; not remote cloud storage.
-- FFmpeg auto-edit to 1080p/30fps H.264/AAC with audio loudness normalization, plus 1280×720 JPEG thumbnail extraction.
+- FFmpeg auto-edit to 1080p/30fps H.264/AAC with audio loudness normalization, plus 1280×720 JPEG thumbnail extraction.\n- Optional HeyGen avatar provider adapter: fictional presenter, natural speech and lip-synced video generation from script; asynchronous status polling. OFF unless server-side API key and avatar ID are configured.
 - Authenticated edited-video and thumbnail retrieval endpoints.
 - No social upload or publish endpoint exists yet.
 
 ## API
 - `GET /health` — basic health check (no sensitive information).
-- `GET /api/engines` — owner-authenticated text and local FFmpeg engine status.
+- `GET /api/engines` — owner-authenticated text, local FFmpeg and optional HeyGen avatar engine status.\n- `POST /api/jobs/:id/generate-presenter` — submit the job script to HeyGen for a fictional talking presenter video (requires configured key/avatar and a script draft). Returns 202 with provider video ID.\n- `GET /api/jobs/:id/presenter-status` — poll asynchronous HeyGen render status.
 - `GET /api/jobs` — owner-authenticated job list.
 - `POST /api/jobs` — create a draft. Body: `prompt, countryCode, language, durationSeconds, presenter`.
 - `PUT /api/jobs/:id/source` — upload raw MP4/WebM/MOV bytes with the matching Content-Type; server probes the media before storing.
@@ -42,12 +42,12 @@ Sign in with POST /auth/login using a password; the server sets the HttpOnly own
 ## Optional text engine adapter
 The script adapter supports OpenAI-compatible Chat Completions endpoints. Configure `OPENAI_API_KEY`, `OPENAI_MODEL`, and optionally `OPENAI_BASE_URL` on the server only. This may incur provider charges; check pricing and configure spend limits before use. No provider is configured by default. The browser never receives the provider key. Script and metadata generation are separate manual actions and may incur provider usage charges. Generated script drafts are not fact-checked automatically and must be verified against independent sources.
 
-## Production blockers (must be solved before launch)
+## Optional AI presenter provider\nSet `HEYGEN_API_KEY` and `HEYGEN_AVATAR_ID` on the server only; optionally set `HEYGEN_VOICE_ID` to pair a compatible voice. The owner must first generate and review a script, then explicitly request presenter generation. HeyGen returns an asynchronous render ID; this adapter polls its status and returns the provider video URL. Provider generation may incur charges; no call is made while credentials are absent. Confirm current plan pricing and limits with HeyGen before enabling. Use only fictional or properly consented avatars.\n\n## Production blockers (must be solved before launch)
 - Replace JSON storage with a separate Media Studio database and migrations.
 - Upgrade the local owner-login foundation to persistent production identity, MFA, password recovery, session storage, login throttling and audit trails before public deployment.
 - Add CSRF/origin policy if cookie sessions are used, rate limits, audit log, backup/restore, observability and malware/content scanning.
 - Replace local-disk media storage with a separate private object-storage account, resumable uploads and short-lived signed URLs before remote deployment.
-- Integrate real research, LLM, voice, video rendering, editing and thumbnail providers with per-provider budgets and secret management.
+- Integrate real research, LLM, additional voice options, video rendering, editing and thumbnail providers with per-provider budgets and secret management.\n- Add safe, authenticated download/import of completed provider renders into private storage, webhook signature validation and background queue retries.
 - Validate current-affairs claims against trustworthy sources and preserve source records.
 - Add platform-specific OAuth and permissions. Publishing must remain a separate explicit owner action.
 - Never use the Viyzo Worker Supabase project or its credentials for this product.
