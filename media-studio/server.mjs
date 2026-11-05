@@ -9,7 +9,7 @@ import { dirname, resolve } from "node:path";
 import { createVideoJob, approveJob, completeStage } from "./src/domain/video-job.mjs";
 import { getTextEngineStatus, generateScriptDraft, generateMetadataDraft } from "./src/providers/openai-compatible.mjs";
 import { extensionForMime, inspectVideo, autoEditVideo, qualityCheckVideo, getMediaEngineStatus, MEDIA_LIMITS } from "./src/providers/ffmpeg-pipeline.mjs";
-import { getAvatarEngineStatus, generateAvatarVideo, getAvatarVideoStatus } from "./src/providers/heygen-avatar.mjs";
+import { getAvatarEngineStatus, generateAvatarVideo, getAvatarVideoStatus, isTrustedAvatarVideoUrl } from "./src/providers/heygen-avatar.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 8787);
@@ -409,6 +409,68 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { presenterVideo: store.jobs[index].presenterVideo });
     }
 
+
+
+    const importPresenterMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/import-presenter-video$/i);
+    if (importPresenterMatch && req.method === "POST") {
+      const [, id] = importPresenterMatch;
+      const store = await readStore();
+      const index = store.jobs.findIndex(job => job.id === id);
+      if (index < 0) return send(res, 404, { error: "job_not_found" });
+      const job = store.jobs[index];
+      if (job.ownerApproved) return send(res, 409, { error: "job_already_approved" });
+      if (job.sourceMedia?.storageKey) return send(res, 409, { error: "source_video_already_exists", hint: "Remove or replace the existing source video first." });
+      const presenter = job.presenterVideo;
+      if (!presenter?.videoId || presenter.status !== "completed" || !presenter.videoUrl) {
+        return send(res, 409, { error: "presenter_video_not_completed", hint: "Check presenter status and wait until rendering is completed." });
+      }
+      if (!isTrustedAvatarVideoUrl(presenter.videoUrl)) return send(res, 422, { error: "untrusted_presenter_video_url" });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 90000);
+      const key = id + "-source.mp4";
+      const finalPath = resolve(MEDIA_DIR, key);
+      const tempPath = finalPath + ".part";
+      try {
+        const response = await fetch(presenter.videoUrl, { redirect: "manual", signal: controller.signal, headers: { accept: "video/mp4" } });
+        if (!response.ok || response.status >= 300 || !response.body) {
+          return send(res, 502, { error: "presenter_video_download_failed", providerStatus: response.status });
+        }
+        const mime = String(response.headers.get("content-type") || "").split(";")[0].toLowerCase();
+        if (mime !== "video/mp4" && mime !== "application/octet-stream") return send(res, 415, { error: "presenter_video_not_mp4" });
+        const declaredLength = Number(response.headers.get("content-length") || 0);
+        if (declaredLength > MEDIA_LIMITS.maxSourceBytes) return send(res, 413, { error: "video_too_large" });
+        await mkdir(MEDIA_DIR, { recursive: true, mode: 0o700 });
+        await chmod(MEDIA_DIR, 0o700);
+        let received = 0;
+        const limiter = new Transform({
+          transform(chunk, encoding, callback) {
+            received += chunk.length;
+            if (received > MEDIA_LIMITS.maxSourceBytes) callback(Object.assign(new Error("video_too_large"), { status: 413 }));
+            else callback(null, chunk);
+          }
+        });
+        await pipeline(response.body, limiter, createWriteStream(tempPath, { flags: "wx", mode: 0o600 }));
+        const probe = await inspectVideo(tempPath);
+        const previousKey = job.sourceMedia?.storageKey;
+        await rename(tempPath, finalPath);
+        if (previousKey && previousKey !== key) await unlink(resolve(MEDIA_DIR, previousKey)).catch(() => {});
+        await unlink(resolve(MEDIA_DIR, id + "-edited.mp4")).catch(() => {});
+        await unlink(resolve(MEDIA_DIR, id + "-thumbnail.jpg")).catch(() => {});
+        delete job.processedMedia;
+        delete job.qualityReport;
+        job.sourceMedia = { storageKey: key, mime: "video/mp4", bytes: probe.bytes, durationSeconds: probe.durationSeconds, width: probe.width, height: probe.height, hasAudio: probe.hasAudio, importedFrom: "heygen", importedAt: new Date().toISOString() };
+        job.presenterVideo = { ...presenter, importedAt: job.sourceMedia.importedAt, status: "imported_to_private_library" };
+        job.updatedAt = job.sourceMedia.importedAt;
+        await saveStore(store);
+        return send(res, 201, { job, message: "Completed AI presenter video imported and validated in the private media library." });
+      } catch (error) {
+        await unlink(tempPath).catch(() => {});
+        await unlink(finalPath).catch(() => {});
+        return send(res, error.status || 502, { error: error.status ? error.message : error.name === "AbortError" ? "presenter_download_timeout" : "presenter_import_validation_failed" });
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
 
     const qualityMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/quality-check$/i);
     if (qualityMatch && req.method === "POST") {
