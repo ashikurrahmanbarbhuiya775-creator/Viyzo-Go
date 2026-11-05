@@ -62,10 +62,19 @@ async function readBody(req) {
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, "http://" + (req.headers.host || "localhost"));
-    if (req.method === "GET" && url.pathname === "/health") return send(res, 200, { ok: true, service: "viyzo-media-studio-api", mode: "local-demo" });
+    if (req.method === "GET" && url.pathname === "/health") {
+      return send(res, 200, { ok: true, service: "viyzo-media-studio-api", mode: "local-demo" });
+    }
     if (!authorized(req)) return send(res, 401, { error: "unauthorized" });
 
-    if (req.method === "GET" && url.pathname === "/api/engines") {\n      return send(res, 200, { engines: [getTextEngineStatus()], otherEngines: ["research","voice","video_render","auto_edit","thumbnail","publishing"].map(id => ({ id, status: "not_configured" })) });\n    }\n    if (req.method === "GET" && url.pathname === "/api/jobs") {
+    if (req.method === "GET" && url.pathname === "/api/engines") {
+      return send(res, 200, {
+        engines: [getTextEngineStatus()],
+        otherEngines: ["research", "voice", "video_render", "auto_edit", "metadata", "thumbnail", "publishing"]
+          .map(id => ({ id, status: "not_configured" }))
+      });
+    }
+    if (req.method === "GET" && url.pathname === "/api/jobs") {
       const store = await readStore();
       return send(res, 200, { jobs: store.jobs });
     }
@@ -79,6 +88,25 @@ const server = http.createServer(async (req, res) => {
       return send(res, 201, { job: created.job });
     }
 
+    const scriptMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/generate-script$/i);
+    if (scriptMatch && req.method === "POST") {
+      const [, id] = scriptMatch;
+      const store = await readStore();
+      const index = store.jobs.findIndex(job => job.id === id);
+      if (index < 0) return send(res, 404, { error: "job_not_found" });
+      if (store.jobs[index].ownerApproved) return send(res, 409, { error: "job_already_approved" });
+      const generated = await generateScriptDraft(store.jobs[index]);
+      if (!generated.ok) {
+        const status = generated.error === "text_engine_not_configured" ? 503 : 502;
+        return send(res, status, { error: generated.error, providerStatus: generated.status });
+      }
+      store.jobs[index].scriptDraft = generated.script;
+      store.jobs[index].scriptModel = generated.model;
+      store.jobs[index].updatedAt = new Date().toISOString();
+      await saveStore(store);
+      return send(res, 200, { job: store.jobs[index] });
+    }
+
     const match = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/(stage|approve)$/i);
     if (match && req.method === "POST") {
       const [, id, action] = match;
@@ -86,16 +114,16 @@ const server = http.createServer(async (req, res) => {
       const index = store.jobs.findIndex(job => job.id === id);
       if (index < 0) return send(res, 404, { error: "job_not_found" });
       const body = await readBody(req);
-      let result;
-      if (action === "stage") result = completeStage(store.jobs[index], body.stage);
-      else result = approveJob(store.jobs[index], "local-owner");
+      const result = action === "stage"
+        ? completeStage(store.jobs[index], body.stage)
+        : approveJob(store.jobs[index], "local-owner");
       if (!result.ok) return send(res, 409, { error: result.error, expected: result.expected });
       store.jobs[index] = result.job;
       await saveStore(store);
       return send(res, 200, { job: result.job });
     }
 
-    // There is intentionally no public upload/publish route in this demo API.
+    // Deliberately no upload or publishing endpoint exists in this development scaffold.
     return send(res, 404, { error: "not_found" });
   } catch (error) {
     return send(res, error.status || 500, { error: error.status ? error.message : "internal_error" });
