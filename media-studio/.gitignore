@@ -1,0 +1,5 @@
+# Local-only secrets and runtime data
+.env
+data/
+*.log
+node_modules/
