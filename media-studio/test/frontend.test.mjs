@@ -27,5 +27,10 @@ test("dashboard inline JavaScript parses and exposes engine actions", async () =
   assert.match(html, /logoutApi/);
   assert.match(html, /data-presenter/);
   assert.match(html, /generate-presenter/);
-  assert.match(html, /presenter-status/);\n  assert.match(html, /Viyzo Media Hub/);\n  assert.match(html, /page-growth/);\n  assert.match(html, /Audience Growth Engine/);\n  assert.match(html, /Meta OAuth/);\n  assert.match(html, /No fake followers/);
+  assert.match(html, /presenter-status/);
+  assert.match(html, /Viyzo Media Hub/);
+  assert.match(html, /page-growth/);
+  assert.match(html, /Audience Growth Engine/);
+  assert.match(html, /Meta OAuth/);
+  assert.match(html, /No fake followers/);
 });
