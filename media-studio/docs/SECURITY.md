@@ -6,6 +6,7 @@
 - Successful password login creates a random, expiring 12-hour HttpOnly, SameSite=Strict session cookie.
 - Session tokens are held server-side in memory and revoked on logout or server restart.
 - Cookie-authenticated state changes require an exact same-origin Origin header.
+- Owner password login is rate-limited to 8 failed attempts per IP in a 15-minute window.
 - Constant-time comparison is used for bearer-token compatibility and password-hash verification.
 - Job routes require a valid owner session or an optional 32+ character local bearer token.
 - Request bodies are limited to 32 KiB; JSON responses disable caching and set nosniff / restrictive CSP headers.
@@ -22,7 +23,7 @@
 Use a unique password of at least 12 characters. Protect the environment file and never send the password or hash in chat or commit it to Git.
 
 ## Not production security
-This is a local development owner-login foundation, not a production identity platform. Sessions are memory-only and are lost on restart; there is no password reset, MFA, account recovery, persistent session store, login throttling, audit trail, rate limiting, malware scan, backup/restore or multi-device session manager. Do not expose this API to the public internet.
+This is a local development owner-login foundation, not a production identity platform. Sessions are memory-only and are lost on restart; there is no password reset, MFA, account recovery, persistent session store, distributed rate limiting, audit trail, malware scan, backup/restore or multi-device session manager. Do not expose this API to the public internet.
 
 Private media is stored on the server's local disk, not cloud storage. Local file permissions do not encrypt the disk or provide remote backups. Before remote deployment, add a separate private object-storage account, encrypted transport and at-rest encryption, short-lived signed access, resumable uploads, quotas, malware/content scanning, persistent database-backed sessions, MFA, monitoring and recovery.
 
