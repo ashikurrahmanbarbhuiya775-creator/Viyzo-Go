@@ -28,6 +28,12 @@ test("dashboard inline JavaScript parses and exposes engine actions", async () =
   assert.match(html, /data-presenter/);
   assert.match(html, /data-quality=/);
   assert.match(html, /quality-check/);
+  assert.match(html, /page-settings/);
+  assert.match(html, /settingLanguage/);
+  assert.match(html, /saveSettings/);
+  assert.match(html, /data-more/);
+  assert.match(html, /project-grid/);
+  assert.match(html, /action-group/);
   assert.match(html, /generate-presenter/);
   assert.match(html, /presenter-status/);
   assert.match(html, /Viyzo Media Hub/);
