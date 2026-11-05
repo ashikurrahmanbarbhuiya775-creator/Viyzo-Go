@@ -3,7 +3,7 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createVideoJob, approveJob, completeStage } from "./src/domain/video-job.mjs";
-import { getTextEngineStatus, generateScriptDraft } from "./src/providers/openai-compatible.mjs";
+import { getTextEngineStatus, generateScriptDraft, generateMetadataDraft } from "./src/providers/openai-compatible.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 8787);
@@ -114,6 +114,25 @@ const server = http.createServer(async (req, res) => {
       }
       store.jobs[index].scriptDraft = generated.script;
       store.jobs[index].scriptModel = generated.model;
+      store.jobs[index].updatedAt = new Date().toISOString();
+      await saveStore(store);
+      return send(res, 200, { job: store.jobs[index] });
+    }
+
+    const metadataMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/generate-metadata$/i);
+    if (metadataMatch && req.method === "POST") {
+      const [, id] = metadataMatch;
+      const store = await readStore();
+      const index = store.jobs.findIndex(job => job.id === id);
+      if (index < 0) return send(res, 404, { error: "job_not_found" });
+      if (store.jobs[index].ownerApproved) return send(res, 409, { error: "job_already_approved" });
+      const generated = await generateMetadataDraft(store.jobs[index]);
+      if (!generated.ok) {
+        const status = generated.error === "text_engine_not_configured" ? 503 : 502;
+        return send(res, status, { error: generated.error, providerStatus: generated.status });
+      }
+      store.jobs[index].metadataDraft = generated.metadata;
+      store.jobs[index].metadataModel = generated.model;
       store.jobs[index].updatedAt = new Date().toISOString();
       await saveStore(store);
       return send(res, 200, { job: store.jobs[index] });
