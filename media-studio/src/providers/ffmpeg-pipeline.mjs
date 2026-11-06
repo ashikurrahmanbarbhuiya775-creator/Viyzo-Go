@@ -89,10 +89,24 @@ async function firstAvailableFont(candidates) {
 
 async function findThumbnailFonts(headline) {
   const latin = await firstAvailableFont(["/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]);
-  const devanagari = /[\u0900-\u097f]/.test(headline)
-    ? await firstAvailableFont(["/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", latin])
+  const scripts = [
+    { pattern: /[\u0900-\u097f]/, font: "NotoSansDevanagari-Bold.ttf" },
+    { pattern: /[\u0980-\u09ff]/, font: "NotoSansBengali-Bold.ttf" },
+    { pattern: /[\u0a80-\u0aff]/, font: "NotoSansGujarati-Bold.ttf" },
+    { pattern: /[\u0b00-\u0b7f]/, font: "NotoSansOriya-Bold.ttf" },
+    { pattern: /[\u0b80-\u0bff]/, font: "NotoSansTamil-Bold.ttf" },
+    { pattern: /[\u0c00-\u0c7f]/, font: "NotoSansTelugu-Bold.ttf" },
+    { pattern: /[\u0c80-\u0cff]/, font: "NotoSansKannada-Bold.ttf" },
+    { pattern: /[\u0d00-\u0d7f]/, font: "NotoSansMalayalam-Bold.ttf" },
+    { pattern: /[\u0e00-\u0e7f]/, font: "NotoSansThai-Bold.ttf" },
+    { pattern: /[\u0600-\u06ff]/, font: "NotoNaskhArabic-Bold.ttf" },
+    { pattern: /[\u0590-\u05ff]/, font: "NotoSansHebrew-Bold.ttf" }
+  ];
+  const selected = scripts.find(item => item.pattern.test(headline));
+  const scriptFont = selected
+    ? await firstAvailableFont(["/usr/share/fonts/truetype/noto/" + selected.font, latin])
     : latin;
-  return { brand: latin, headline: devanagari || latin };
+  return { brand: latin, headline: scriptFont || latin };
 }
 
 export async function autoEditVideo(sourcePath, jobId, options = {}) {
