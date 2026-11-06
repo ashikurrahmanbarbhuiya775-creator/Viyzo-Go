@@ -5,6 +5,12 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.webkit.PermissionRequest;
 import android.os.Bundle;
+import android.content.Intent;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
+import android.speech.RecognitionListener;
+import android.webkit.JavascriptInterface;
+import java.util.ArrayList;
 import android.graphics.Color;
 import android.view.View;
 import android.webkit.WebChromeClient;
@@ -20,6 +26,8 @@ public class MainActivity extends Activity {
     private WebView webView;
     private ProgressBar progress;
     private PermissionRequest pendingPermissionRequest;
+    private SpeechRecognizer speechRecognizer;
+    private boolean waitingForVoicePermission = false;
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -40,6 +48,7 @@ public class MainActivity extends Activity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSafeBrowsingEnabled(true);
         webView.setBackgroundColor(Color.rgb(11, 16, 32));
+        webView.addJavascriptInterface(new VoiceBridge(), "ViyzoVoice");
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient() {
             @Override public void onProgressChanged(WebView view, int newProgress) {
@@ -64,6 +73,10 @@ public class MainActivity extends Activity {
         offline.setGravity(Gravity.CENTER);
         offline.setVisibility(View.GONE);
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override public void onProgressChanged(WebView view, int newProgress) {
+                progress.setProgress(newProgress);
+                progress.setVisibility(newProgress >= 100 ? View.GONE : View.VISIBLE);
+            }
             @Override public void onPermissionRequest(PermissionRequest request) {
                 runOnUiThread(() -> {
                     boolean asksForAudio = false;
@@ -106,6 +119,83 @@ public class MainActivity extends Activity {
                 request.deny();
             }
         }
+        if (requestCode == 4103 && waitingForVoicePermission) {
+            waitingForVoicePermission = false;
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) startNativeVoiceRecognition();
+            else sendVoiceResult("", "microphone_permission_denied");
+        }
+    }
+
+    private final class VoiceBridge {
+        @JavascriptInterface public void start() {
+            runOnUiThread(() -> {
+                if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    waitingForVoicePermission = true;
+                    requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 4103);
+                } else {
+                    startNativeVoiceRecognition();
+                }
+            });
+        }
+        @JavascriptInterface public void stop() {
+            runOnUiThread(() -> {
+                if (speechRecognizer != null) speechRecognizer.stopListening();
+            });
+        }
+    }
+
+    private void startNativeVoiceRecognition() {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            sendVoiceResult("", "speech_recognition_unavailable");
+            return;
+        }
+        if (speechRecognizer != null) speechRecognizer.destroy();
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        speechRecognizer.setRecognitionListener(new RecognitionListener() {
+            @Override public void onReadyForSpeech(Bundle params) { sendVoiceStatus("listening"); }
+            @Override public void onBeginningOfSpeech() { }
+            @Override public void onRmsChanged(float rmsdB) { }
+            @Override public void onBufferReceived(byte[] buffer) { }
+            @Override public void onEndOfSpeech() { sendVoiceStatus("processing"); }
+            @Override public void onError(int error) { sendVoiceResult("", "recognition_error_" + error); }
+            @Override public void onResults(Bundle results) {
+                ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                sendVoiceResult(matches == null || matches.isEmpty() ? "" : matches.get(0), "");
+            }
+            @Override public void onPartialResults(Bundle partialResults) {
+                ArrayList<String> matches = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                if (matches != null && !matches.isEmpty()) sendVoicePartial(matches.get(0));
+            }
+            @Override public void onEvent(int eventType, Bundle params) { }
+        });
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN");
+        intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+        intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+        speechRecognizer.startListening(intent);
+    }
+
+    private void sendVoiceStatus(String status) {
+        if (webView != null) webView.post(() -> webView.evaluateJavascript(
+            "window.onViyzoVoiceStatus && window.onViyzoVoiceStatus('" + status + "')", null));
+    }
+
+    private void sendVoicePartial(String text) {
+        try {
+            String safe = org.json.JSONObject.quote(text);
+            if (webView != null) webView.post(() -> webView.evaluateJavascript(
+                "window.onViyzoVoicePartial && window.onViyzoVoicePartial(" + safe + ")", null));
+        } catch (Exception ignored) { }
+    }
+
+    private void sendVoiceResult(String text, String error) {
+        try {
+            String safeText = org.json.JSONObject.quote(text);
+            String safeError = org.json.JSONObject.quote(error);
+            if (webView != null) webView.post(() -> webView.evaluateJavascript(
+                "window.onViyzoVoiceResult && window.onViyzoVoiceResult(" + safeText + "," + safeError + ")", null));
+        } catch (Exception ignored) { }
     }
 
     private int dp(int value) {
@@ -118,6 +208,7 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        if (speechRecognizer != null) { speechRecognizer.destroy(); speechRecognizer = null; }
         if (webView != null) { webView.stopLoading(); webView.destroy(); webView = null; }
         super.onDestroy();
     }
