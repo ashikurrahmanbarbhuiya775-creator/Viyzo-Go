@@ -16,7 +16,7 @@ export function getMetaStatus() {
     configured: missing.length === 0 && !!encryptionKey(),
     missing: missing.filter(k => k !== "META_TOKEN_ENCRYPTION_KEY" || !encryptionKey()),
     graphVersion: GRAPH_VERSION,
-    capabilities: { facebookLogin: true, managedPageDiscovery: true, countryPageMapping: true, videoPublishing: true, automaticPageCreation: false },
+    capabilities: { facebookLogin: true, managedPageDiscovery: true, countryPageMapping: true, videoPublishing: true, automaticPageCreation: process.env.META_PAGE_CREATION_ENABLED === "true" },
     note: "Meta app credentials, encrypted durable token storage, Page permissions and Meta review are required. Page creation through API requires Meta allowlisting."
   };
 }
@@ -28,7 +28,7 @@ export function createMetaLoginUrl(state) {
     redirect_uri: process.env.META_OAUTH_REDIRECT_URI,
     state,
     response_type: "code",
-    scope: "pages_show_list,pages_read_engagement,pages_manage_posts"
+    scope: "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata"
   }).toString();
   return u.toString();
 }
@@ -94,6 +94,36 @@ export async function mapMetaPage(countryCode, pageId) {
   store.mappings = { ...(store.mappings || {}), [countryCode]: page.id };
   await writeEncrypted(store);
   return { countryCode, page: { id: page.id, name: page.name } };
+}
+export async function createMetaCountryPage({ countryCode, countryName }) {
+  if (process.env.META_PAGE_CREATION_ENABLED !== "true") return { ok: false, error: "meta_page_creation_not_enabled" };
+  if (!/^[A-Z]{2}$/.test(countryCode) || typeof countryName !== "string" || !countryName.trim()) return { ok: false, error: "invalid_country" };
+  const store = await readEncrypted();
+  if (!store.userToken) return { ok: false, error: "meta_not_connected" };
+  if (store.mappings?.[countryCode]) return { ok: false, error: "country_page_already_mapped" };
+  const name = ("Viyzo " + countryName.trim()).slice(0, 75);
+  const about = ("Official Viyzo video page for audiences in " + countryName.trim() + ".").slice(0, 255);
+  const form = new URLSearchParams({ name, about, category_enum: "VIDEO_CREATOR", access_token: store.userToken });
+  try {
+    const response = await fetch("https://graph.facebook.com/" + GRAPH_VERSION + "/me/accounts", {
+      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: form, signal: AbortSignal.timeout(20000)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.error || !result.id) return { ok: false, error: "meta_page_creation_failed", providerCode: result.error?.code || response.status };
+    let created = { id: String(result.id), name, tasks: Array.isArray(result.tasks) ? result.tasks : [], accessToken: String(result.access_token || "") };
+    if (!created.accessToken || !created.tasks.includes("CREATE_CONTENT")) {
+      const refreshed = await graph("/me/accounts", { fields: "id,name,tasks,access_token", limit: 100, access_token: store.userToken });
+      const match = (refreshed.data || []).find(p => String(p.id) === created.id);
+      if (match) created = { id: String(match.id), name: String(match.name || name), tasks: Array.isArray(match.tasks) ? match.tasks : [], accessToken: String(match.access_token || "") };
+    }
+    if (!created.accessToken || !created.tasks.includes("CREATE_CONTENT")) return { ok: false, error: "created_page_token_or_task_unavailable" };
+    store.pages = [...(store.pages || []).filter(p => p.id !== created.id), created];
+    store.mappings = { ...(store.mappings || {}), [countryCode]: created.id };
+    await writeEncrypted(store);
+    return { ok: true, countryCode, page: { id: created.id, name: created.name } };
+  } catch (error) {
+    return { ok: false, error: error.name === "AbortError" ? "meta_page_creation_timeout" : "meta_page_creation_unavailable" };
+  }
 }
 export async function publishMetaVideo({ countryCode, videoPath, title, description }) {
   const store = await readEncrypted();
