@@ -166,7 +166,7 @@ test("FFmpeg upload, auto-edit and thumbnail endpoints work end-to-end", { skip:
     const video = await fetch(base + "/api/jobs/" + job.id + "/edited-video", { headers: { authorization: "Bearer " + token } });
     assert.equal(video.status, 200);
     assert.match(video.headers.get("content-type"), /video\/mp4/);
-    const secondCreated = await fetch(base + "/api/jobs", { method: "POST", headers, body: JSON.stringify({ prompt: "Create a short educational video about Japan", countryCode: "JP", language: "en", durationSeconds: 300, presenter: "fictional" }) });
+    const secondCreated = await fetch(base + "/api/jobs", { method: "POST", headers, body: JSON.stringify({ prompt: "भारत की संस्कृति पर एक शैक्षिक वीडियो बनाओ", countryCode: "IN", language: "hi", durationSeconds: 300, presenter: "fictional" }) });
     assert.equal(secondCreated.status, 201);
     const { job: secondJob } = await secondCreated.json();
     const secondUpload = await fetch(base + "/api/jobs/" + secondJob.id + "/source", { method: "PUT", headers: { authorization: "Bearer " + token, "content-type": "video/mp4" }, body: sourceBytes });
@@ -176,6 +176,8 @@ test("FFmpeg upload, auto-edit and thumbnail endpoints work end-to-end", { skip:
     const postProductionData = await postProduced.json();
     assert.equal(postProductionData.qualityReport.passed, true);
     assert.equal(postProductionData.job.processedMedia.status, "ready_for_owner_review");
+    assert.ok(["branded_title_overlay", "clean_video_frame"].includes(postProductionData.job.processedMedia.thumbnailStyle));
+    assert.match(postProductionData.job.processedMedia.thumbnailHeadline, /भारत की संस्कृति/);
     assert.equal(postProductionData.job.qualityReport.passed, true);
 
   } finally {
