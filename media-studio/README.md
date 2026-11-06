@@ -9,7 +9,7 @@ Isolated workspace on branch `media-studio-isolated`. It does not modify the Viy
 - Optional OpenAI-compatible script and video-metadata generation adapter, including title, description, tags, hashtags, thumbnail headline and a 16:9 thumbnail image prompt.
 - Live country research adapter using OpenAI Responses web search, with cited-source validation before script generation.
 - Optional HeyGen avatar/video generation adapter and status polling.
-- Owner-authenticated video upload, FFprobe validation, FFmpeg 1080p formatting/audio normalization, extracted JPEG frame thumbnail and technical quality checks.
+- Owner-authenticated video upload, FFprobe validation, FFmpeg 1080p formatting/audio normalization, 16:9 JPEG thumbnails with a multilingual title overlay when a supported font is installed, clean-frame fallback, and technical quality checks.
 - Visual-asset provenance checks and explicit owner review/approval gates.
 - Meta OAuth, encrypted server-side token storage, Facebook Page discovery, country-to-Page mapping, optional allowlisted Page creation, and separate owner-approved video publishing adapter.
 - Android WebView wrapper for the hosted dashboard with native speech recognition bridge.
@@ -28,7 +28,7 @@ Isolated workspace on branch `media-studio-isolated`. It does not modify the Viy
 
 - Script and metadata generation require a configured OpenAI-compatible provider and the cost guard to be explicitly enabled.
 - Human-like avatar narration/video requires a configured HeyGen API key and avatar ID, plus explicit paid-call authorization.
-- The current FFmpeg processor edits an uploaded source video, normalizes/encodes it and extracts a frame thumbnail. It does not independently invent scenes, generate footage, compose a finished video from a topic, create timed captions, remove silences, or design an AI-generated thumbnail image.
+- The current FFmpeg processor edits an uploaded source video, normalizes/encodes it and exports a 16:9 thumbnail with a headline overlay. It does not independently invent scenes, generate footage, compose a finished video from a topic, create timed captions, remove silences, or generate a new AI thumbnail background image.
 - The metadata adapter creates a thumbnail image prompt and headline; an image-generation provider and image composition/export step are not yet integrated.
 - No real end-to-end country/topic-to-published-video test has passed. No public Facebook publishing should be attempted before owner review and a private test.
 
