@@ -277,9 +277,9 @@ const server = http.createServer(async (req, res) => {
       if (mediaKey !== id + "-edited.mp4") return send(res, 409, { error: "edited_video_file_missing" });
       if (publishingJobs.has(id) || job.publishState === "publishing") return send(res, 409, { error: "publish_already_in_progress" });
       publishingJobs.add(id);
-      job.publishState = "publishing";
-      await saveStore(store);
       try {
+        job.publishState = "publishing";
+        await saveStore(store);
         const result = await publishMetaVideo({
           countryCode: job.countryCode,
           videoPath: resolve(MEDIA_DIR, mediaKey),
@@ -301,7 +301,6 @@ const server = http.createServer(async (req, res) => {
       } finally {
         publishingJobs.delete(id);
       }
-      return send(res, 200, { job, message: "Video published to the authorized Facebook Page." });
     }
 
     if (req.method === "GET" && url.pathname === "/api/jobs") {
