@@ -7,6 +7,7 @@ import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
 import { dirname, resolve } from "node:path";
 import { createVideoJob, approveJob, completeStage } from "./src/domain/video-job.mjs";
+import { getResourcePolicy, buildGrowthRecommendations } from "./src/domain/resource-policy.mjs";
 import { validateResearchReport } from "./src/domain/research-safety.mjs";
 import { validateVisualAssets } from "./src/domain/visual-evidence-safety.mjs";
 import { getTextEngineStatus, generateScriptDraft, generateMetadataDraft } from "./src/providers/openai-compatible.mjs";
@@ -169,6 +170,7 @@ const server = http.createServer(async (req, res) => {
         service: "viyzo-media-studio-api",
         storage: { writable: storageWritable, directory: "configured-data-directory", directoryStatBytes: storageBytes },
         engines,
+        resourcePolicy: getResourcePolicy(),
         checks: {
           ownerAuthentication: ownerAuth.configured ? "configured" : "not_configured",
           backup: "operator_managed",
@@ -180,9 +182,18 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/engines") {
       return send(res, 200, {
         engines: [getTextEngineStatus(), getCountryResearchStatus(), await getMediaEngineStatus()],
-        otherEngines: [getAvatarEngineStatus(), ...["voice", "video_render", "publishing"].map(id => ({ id, status: "not_configured" }))]
+        otherEngines: [getAvatarEngineStatus(), ...["voice", "video_render", "publishing"].map(id => ({ id, status: "not_configured" }))],
+        resourcePolicy: getResourcePolicy()
       });
     }
+    if (req.method === "POST" && url.pathname === "/api/growth-recommendations") {
+      const metrics = await readBody(req);
+      if (typeof metrics.countryCode !== "string" || !/^[A-Z]{2}$/.test(metrics.countryCode)) {
+        return send(res, 422, { error: "valid_country_code_required" });
+      }
+      return send(res, 200, buildGrowthRecommendations(metrics));
+    }
+
     if (req.method === "GET" && url.pathname === "/api/jobs") {
       const store = await readStore();
       return send(res, 200, { jobs: store.jobs });
