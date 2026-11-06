@@ -276,6 +276,7 @@ async function refreshMetaPages(){
     const createButton=document.getElementById("createCountryPage");createButton.disabled=!status.capabilities?.automaticPageCreation;createButton.title=status.capabilities?.automaticPageCreation?"Create a Facebook Page through Meta allowlisted API":"Meta must allowlist the app for Page creation first.";if(!status.configured){statusNode.textContent="Facebook connection setup is not configured yet.";listNode.textContent="Pending server setup: "+(status.missing||[]).join(", ")+". Facebook login will activate after Meta app credentials and encrypted token storage are configured.";button.disabled=true;return;}
     button.disabled=false;
     const data=await apiFetch("/api/meta/pages");
+    createButton.disabled=!data.connected||!status.capabilities?.automaticPageCreation;
     statusNode.textContent=data.connected?"Facebook account connected. Choose the destination Page for each country.":"Ready to connect your Facebook account.";
     listNode.replaceChildren();
     if(!data.connected){listNode.textContent="No Facebook account connected yet.";return;}
@@ -310,7 +311,7 @@ document.getElementById("connectMeta").addEventListener("click",async()=>{
   const button=document.getElementById("connectMeta");
   if(!apiConnected){document.getElementById("metaConnectionStatus").textContent="Sign in to the Owner API first.";return;}
   button.disabled=true;
-  try{const result=await apiFetch("/api/meta/login-url",{method:"POST",body:"{}"});const popup=window.open(result.url,"viyzoMetaConnect","popup,width=600,height=760");if(!popup)window.location.assign(result.url);}
+  const popup=window.open("about:blank","viyzoMetaConnect","popup,width=600,height=760");try{const result=await apiFetch("/api/meta/login-url",{method:"POST",body:"{}"});if(popup)popup.location=result.url;else window.location.assign(result.url);}
   catch(e){document.getElementById("metaConnectionStatus").textContent="Facebook setup: "+e.message;button.disabled=false;}
 });
 
