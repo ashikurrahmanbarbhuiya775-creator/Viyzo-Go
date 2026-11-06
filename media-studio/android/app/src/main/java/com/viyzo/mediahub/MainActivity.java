@@ -1,6 +1,9 @@
 package com.viyzo.mediahub;
 
 import android.app.Activity;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.webkit.PermissionRequest;
 import android.os.Bundle;
 import android.graphics.Color;
 import android.view.View;
@@ -16,6 +19,7 @@ import android.view.Gravity;
 public class MainActivity extends Activity {
     private WebView webView;
     private ProgressBar progress;
+    private PermissionRequest pendingPermissionRequest;
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -59,6 +63,23 @@ public class MainActivity extends Activity {
         offline.setTextSize(16);
         offline.setGravity(Gravity.CENTER);
         offline.setVisibility(View.GONE);
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override public void onPermissionRequest(PermissionRequest request) {
+                runOnUiThread(() -> {
+                    boolean asksForAudio = false;
+                    for (String resource : request.getResources()) {
+                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) asksForAudio = true;
+                    }
+                    if (!asksForAudio) { request.deny(); return; }
+                    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+                    } else {
+                        pendingPermissionRequest = request;
+                        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 4102);
+                    }
+                });
+            }
+        });
         webView.setWebViewClient(new WebViewClient() {
             @Override public void onReceivedError(WebView view, android.webkit.WebResourceRequest request,
                                                    android.webkit.WebResourceError error) {
@@ -72,6 +93,19 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         setContentView(root);
         webView.loadUrl("file:///android_asset/index.html");
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 4102 && pendingPermissionRequest != null) {
+            PermissionRequest request = pendingPermissionRequest;
+            pendingPermissionRequest = null;
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+            } else {
+                request.deny();
+            }
+        }
     }
 
     private int dp(int value) {
