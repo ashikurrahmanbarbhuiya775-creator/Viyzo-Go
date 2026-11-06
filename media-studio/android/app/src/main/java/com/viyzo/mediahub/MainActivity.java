@@ -28,6 +28,7 @@ public class MainActivity extends Activity {
     private PermissionRequest pendingPermissionRequest;
     private SpeechRecognizer speechRecognizer;
     private boolean waitingForVoicePermission = false;
+    private String requestedSpeechLanguage = "hi-IN";
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -127,7 +128,8 @@ public class MainActivity extends Activity {
     }
 
     private final class VoiceBridge {
-        @JavascriptInterface public void start() {
+        @JavascriptInterface public void start(String languageTag) {
+            requestedSpeechLanguage = languageTag == null || languageTag.isEmpty() ? "hi-IN" : languageTag;
             runOnUiThread(() -> {
                 if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                     waitingForVoicePermission = true;
@@ -170,7 +172,7 @@ public class MainActivity extends Activity {
         });
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN");
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, requestedSpeechLanguage);
         intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
         speechRecognizer.startListening(intent);
