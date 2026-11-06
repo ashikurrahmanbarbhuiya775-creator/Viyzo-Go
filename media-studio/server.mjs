@@ -140,6 +140,21 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/session") {
       return authMethod(req) ? send(res, 200, { authenticated: true, owner: "owner" }) : send(res, 401, { authenticated: false });
     }
+    if (req.method === "GET" && url.pathname === "/auth/meta/callback") {
+      const state = url.searchParams.get("state") || "";
+      const cookieState = cookieValue(req, "viyzo_meta_state");
+      const expires = metaOAuthStates.get(state);
+      metaOAuthStates.delete(state);
+      if (!state || state !== cookieState || !expires || expires < Date.now()) return send(res, 403, { error: "meta_oauth_state_invalid" });
+      if (url.searchParams.get("error")) return sendHtml(res, "<h2>Facebook connection was not completed.</h2><p>You can close this window and return to Viyzo.</p>");
+      const code = url.searchParams.get("code") || "";
+      if (!code) return send(res, 400, { error: "meta_oauth_code_missing" });
+      try {
+        const pages = await finishMetaLogin(code);
+        return sendHtml(res, "<!doctype html><meta charset=utf-8><title>Facebook connected</title><h2>Facebook connected to Viyzo.</h2><p>" + pages.length + " managed Pages discovered. Return to Viyzo Settings to assign country Pages.</p><script>try{window.opener&&window.opener.postMessage({type:'viyzo-meta-connected'},location.origin)}catch(e){}</script>");
+      } catch (error) { return send(res, 502, { error: error.message || "meta_connection_failed" }); }
+    }
+
     if (!authMethod(req)) return send(res, 401, { error: "unauthorized" });
     if (!csrfValid(req, url, req.method)) return send(res, 403, { error: "origin_not_allowed" });
     if (req.method === "POST" && url.pathname === "/auth/logout") {
@@ -157,20 +172,6 @@ const server = http.createServer(async (req, res) => {
       metaOAuthStates.set(state, Date.now() + 10 * 60 * 1000);
       res.writeHead(302, { location: createMetaLoginUrl(state), "cache-control": "no-store", "set-cookie": "viyzo_meta_state=" + state + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=600" });
       return res.end();
-    }
-    if (req.method === "GET" && url.pathname === "/auth/meta/callback") {
-      const state = url.searchParams.get("state") || "";
-      const cookieState = cookieValue(req, "viyzo_meta_state");
-      const expires = metaOAuthStates.get(state);
-      metaOAuthStates.delete(state);
-      if (!state || state !== cookieState || !expires || expires < Date.now()) return send(res, 403, { error: "meta_oauth_state_invalid" });
-      if (url.searchParams.get("error")) return sendHtml(res, "<h2>Facebook connection was not completed.</h2><p>You can close this window and return to Viyzo.</p>");
-      const code = url.searchParams.get("code") || "";
-      if (!code) return send(res, 400, { error: "meta_oauth_code_missing" });
-      try {
-        const pages = await finishMetaLogin(code);
-        return sendHtml(res, "<!doctype html><meta charset=utf-8><title>Facebook connected</title><h2>Facebook connected to Viyzo.</h2><p>" + pages.length + " managed Pages discovered. Return to Viyzo Settings to assign country Pages.</p><script>try{window.opener&&window.opener.postMessage({type:'viyzo-meta-connected'},location.origin)}catch(e){}</script>");
-      } catch (error) { return send(res, 502, { error: error.message || "meta_connection_failed" }); }
     }
 
     if (req.method === "GET" && url.pathname === "/api/meta/status") return send(res, 200, getMetaStatus());
