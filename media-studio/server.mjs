@@ -236,6 +236,26 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "PUT" && url.pathname === "/api/meta/mapping") { const body = await readBody(req); try { return send(res, 200, await mapMetaPage(String(body.countryCode || "").toUpperCase(), body.pageId)); } catch (e) { return send(res, 422, { error: e.message }); } }
 
 
+    const approvePublishMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/approve-publish$/i);
+    if (req.method === "POST" && approvePublishMatch) {
+      const [, id] = approvePublishMatch;
+      const store = await readStore();
+      const index = store.jobs.findIndex(job => job.id === id);
+      if (index < 0) return send(res, 404, { error: "job_not_found" });
+      const job = store.jobs[index];
+      if (job.ownerApproved) return send(res, 409, { error: "already_approved" });
+      if (job.qualityReport?.passed !== true || job.processedMedia?.status !== "ready_for_owner_review") return send(res, 409, { error: "passed_quality_check_required" });
+      if (job.processedMedia.editedKey !== id + "-edited.mp4") return send(res, 409, { error: "edited_video_file_missing" });
+      job.ownerApproved = true;
+      job.approvedBy = "owner";
+      job.approvedAt = new Date().toISOString();
+      job.publishState = "ready_for_explicit_publish_action";
+      job.status = "approved";
+      job.updatedAt = job.approvedAt;
+      await saveStore(store);
+      return send(res, 200, { job, message: "Owner approval recorded. Publishing still requires a separate explicit action." });
+    }
+
     const publishMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/publish$/i);
     if (req.method === "POST" && publishMatch) {
       const [, id] = publishMatch;
