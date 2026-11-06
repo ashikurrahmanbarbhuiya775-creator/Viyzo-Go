@@ -255,8 +255,21 @@ async function refreshMetaPages(){
     if(!status.configured){statusNode.textContent="Facebook connection setup is not configured yet.";listNode.textContent="Pending server setup: "+(status.missing||[]).join(", ")+". Facebook login will activate after Meta app credentials and encrypted token storage are configured.";button.disabled=true;return;}
     button.disabled=false;
     const data=await apiFetch("/api/meta/pages");
-    statusNode.textContent=data.connected?"Facebook account connected. Choose a country-to-Page mapping.":"Ready to connect your Facebook account.";
-    listNode.textContent=data.connected?(data.pages.length+" Pages discovered. Country mappings: "+Object.keys(data.mappings||{}).length):"No Facebook account connected yet.";
+    statusNode.textContent=data.connected?"Facebook account connected. Choose the destination Page for each country.":"Ready to connect your Facebook account.";
+    listNode.replaceChildren();
+    if(!data.connected){listNode.textContent="No Facebook account connected yet.";return;}
+    const heading=document.createElement("p");heading.textContent=data.pages.length+" authorized Pages discovered. Assign a Page to a country:";listNode.append(heading);
+    for(const page of data.pages){
+      const row=document.createElement("div");row.style.cssText="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0;padding:8px;border:1px solid var(--line);border-radius:8px";
+      const name=document.createElement("strong");name.textContent=page.name+" · "+page.id;row.append(name);
+      const country=document.createElement("select");country.setAttribute("aria-label","Country for "+page.name);
+      const none=document.createElement("option");none.value="";none.textContent="Choose country";country.append(none);
+      for(const opt of document.getElementById("country").options){const o=document.createElement("option");o.value=opt.value;o.textContent=opt.textContent;country.append(o);}
+      const current=Object.entries(data.mappings||{}).find(([,id])=>id===page.id);if(current)country.value=current[0];
+      const save=document.createElement("button");save.className="btn";save.textContent="Save country";
+      save.addEventListener("click",async()=>{if(!country.value){statusNode.textContent="Choose a country first.";return;}save.disabled=true;try{await apiFetch("/api/meta/mapping",{method:"PUT",body:JSON.stringify({countryCode:country.value,pageId:page.id})});statusNode.textContent=page.name+" is now assigned to "+country.value+".";await refreshMetaPages();}catch(e){statusNode.textContent="Could not save Page mapping: "+e.message;}finally{save.disabled=false;}});
+      row.append(country,save);listNode.append(row);
+    }
   }catch(e){statusNode.textContent="Facebook connection status unavailable: "+e.message;listNode.textContent="";button.disabled=true;}
 }
 document.getElementById("connectMeta").addEventListener("click",async()=>{
