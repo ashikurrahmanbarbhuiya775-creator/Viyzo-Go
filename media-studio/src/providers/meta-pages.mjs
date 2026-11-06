@@ -12,11 +12,12 @@ function encryptionKey() {
 export function getMetaStatus() {
   const required = ["META_APP_ID", "META_APP_SECRET", "META_OAUTH_REDIRECT_URI", "META_TOKEN_ENCRYPTION_KEY", "META_TOKEN_STORE_FILE"];
   const missing = required.filter(k => !process.env[k]);
+  const configured = missing.length === 0 && !!encryptionKey();
   return {
-    configured: missing.length === 0 && !!encryptionKey(),
+    configured,
     missing: missing.filter(k => k !== "META_TOKEN_ENCRYPTION_KEY" || !encryptionKey()),
     graphVersion: GRAPH_VERSION,
-    capabilities: { facebookLogin: true, managedPageDiscovery: true, countryPageMapping: true, videoPublishing: true, automaticPageCreation: process.env.META_PAGE_CREATION_ENABLED === "true" },
+    capabilities: { facebookLogin: true, managedPageDiscovery: true, countryPageMapping: true, videoPublishing: true, automaticPageCreation: configured && process.env.META_PAGE_CREATION_ENABLED === "true" },
     note: "Meta app credentials, encrypted durable token storage, Page permissions and Meta review are required. Page creation through API requires Meta allowlisting."
   };
 }
@@ -97,6 +98,7 @@ export async function mapMetaPage(countryCode, pageId) {
 }
 export async function createMetaCountryPage({ countryCode, countryName }) {
   if (process.env.META_PAGE_CREATION_ENABLED !== "true") return { ok: false, error: "meta_page_creation_not_enabled" };
+  if (!getMetaStatus().configured) return { ok: false, error: "meta_setup_incomplete" };
   if (!/^[A-Z]{2}$/.test(countryCode) || typeof countryName !== "string" || !countryName.trim()) return { ok: false, error: "invalid_country" };
   const store = await readEncrypted();
   if (!store.userToken) return { ok: false, error: "meta_not_connected" };
