@@ -170,7 +170,7 @@ const server = http.createServer(async (req, res) => {
       if (!status.configured) return send(res, 503, { error: "meta_setup_incomplete", status });
       const state = randomUUID() + randomUUID();
       metaOAuthStates.set(state, Date.now() + 10 * 60 * 1000);
-      res.writeHead(302, { location: createMetaLoginUrl(state), "cache-control": "no-store", "set-cookie": "viyzo_meta_state=" + state + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=600" });
+      res.writeHead(302, { location: createMetaLoginUrl(state), "cache-control": "no-store", "set-cookie": "viyzo_meta_state=" + state + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=600" + (process.env.NODE_ENV === "production" ? "; Secure" : "") });
       return res.end();
     }
 
