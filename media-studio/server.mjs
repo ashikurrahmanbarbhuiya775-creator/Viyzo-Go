@@ -204,6 +204,8 @@ const server = http.createServer(async (req, res) => {
         presenter: getAvatarEngineStatus(),
         video: await getMediaEngineStatus()
       };
+      let metaConnection = { connected: false };
+      try { metaConnection = await listMetaPages(); } catch {}
       return send(res, 200, {
         ok: storageWritable,
         service: "viyzo-media-studio-api",
@@ -213,7 +215,7 @@ const server = http.createServer(async (req, res) => {
         checks: {
           ownerAuthentication: ownerAuth.configured ? "configured" : "not_configured",
           backup: "operator_managed",
-          publishing: getMetaStatus().configured ? "oauth_ready_not_connected" : "not_configured", meta: getMetaStatus()
+          publishing: metaConnection.connected ? "connected" : getMetaStatus().configured ? "oauth_ready_not_connected" : "not_configured", meta: getMetaStatus()
         }
       });
     }
@@ -221,7 +223,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/engines") {
       return send(res, 200, {
         engines: [getTextEngineStatus(), getCountryResearchStatus(), await getMediaEngineStatus()],
-        otherEngines: [getAvatarEngineStatus(), ...["voice", "video_render", "publishing"].map(id => ({ id, status: "not_configured" }))],
+        otherEngines: [getAvatarEngineStatus(), ...["voice", "video_render"].map(id => ({ id, status: "not_configured" })), { id: "publishing", status: getMetaStatus().configured ? "ready_for_facebook_connection" : "not_configured", note: "Meta Pages API · owner approval required" }],
         resourcePolicy: getResourcePolicy()
       });
     }
