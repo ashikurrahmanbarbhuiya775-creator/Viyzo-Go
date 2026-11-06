@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { getAvatarEngineStatus, generateAvatarVideo, getAvatarVideoStatus, isTrustedAvatarVideoUrl } from "../src/providers/heygen-avatar.mjs";
 
-const env = { HEYGEN_API_KEY: "test-secret", HEYGEN_AVATAR_ID: "fictional-avatar-id", HEYGEN_VOICE_ID: "natural-voice-id" };
+const env = { HEYGEN_API_KEY: "test-secret", HEYGEN_AVATAR_ID: "fictional-avatar-id", HEYGEN_VOICE_ID: "natural-voice-id", VIYZO_ALLOW_PAID_AI: "true" };
 
 test("HeyGen presenter engine stays off without credentials and makes no call", async () => {
   assert.equal(getAvatarEngineStatus({}).status, "not_configured");
