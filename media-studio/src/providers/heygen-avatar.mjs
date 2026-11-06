@@ -1,3 +1,4 @@
+import { isPaidAiAllowed } from "../domain/resource-policy.mjs";
 const API_BASE = "https://api.heygen.com";
 
 export function getAvatarEngineStatus(env = process.env) {
@@ -6,7 +7,8 @@ export function getAvatarEngineStatus(env = process.env) {
     id: "ai_presenter",
     name: "HeyGen human-like AI presenter",
     configured,
-    status: configured ? "configured_not_health_checked" : "not_configured",
+    status: !configured ? "not_configured" : isPaidAiAllowed(env) ? "configured_not_health_checked" : "configured_but_cost_locked",
+    paidCallsEnabled: isPaidAiAllowed(env),
     lipSync: true,
     naturalVoice: true,
     note: configured
@@ -38,6 +40,7 @@ async function heygenRequest(path, env, options = {}) {
 export async function generateAvatarVideo(job, env = process.env) {
   const status = getAvatarEngineStatus(env);
   if (!status.configured) return { ok: false, error: "avatar_engine_not_configured" };
+  if (!isPaidAiAllowed(env)) return { ok: false, error: "paid_ai_cost_guard_blocked" };
   const narration = narrationFromScript(job?.scriptDraft);
   if (!narration) return { ok: false, error: "approved_script_required" };
   const input = {
@@ -66,6 +69,7 @@ export async function generateAvatarVideo(job, env = process.env) {
 
 export async function getAvatarVideoStatus(videoId, env = process.env) {
   if (!getAvatarEngineStatus(env).configured) return { ok: false, error: "avatar_engine_not_configured" };
+  if (!isPaidAiAllowed(env)) return { ok: false, error: "paid_ai_cost_guard_blocked" };
   if (typeof videoId !== "string" || !/^[a-zA-Z0-9_-]{8,128}$/.test(videoId)) return { ok: false, error: "invalid_avatar_video_id" };
   try {
     const response = await heygenRequest("/v1/video_status.get?video_id=" + encodeURIComponent(videoId), env, { timeoutMs: 20000 });
