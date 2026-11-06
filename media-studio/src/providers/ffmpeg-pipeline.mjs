@@ -118,7 +118,7 @@ export async function autoEditVideo(sourcePath, jobId, options = {}) {
   if (thumbnailFont) {
     await writeFile(titleFile, headline, { encoding: "utf8", mode: 0o600 });
     try {
-      const filter = "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,drawbox=x=0:y=ih-218:w=iw:h=218:color=black@0.62:t=fill,drawtext=fontfile=" + thumbnailFont + ":textfile=" + titleFile + ":expansion=none:fontcolor=white:fontsize=44:line_spacing=12:x=58:y=h-th-48:fix_bounds=1";
+      const filter = "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,drawbox=x=0:y=ih-218:w=iw:h=218:color=black@0.62:t=fill,drawbox=x=58:y=52:w=220:h=66:color=white@0.94:t=fill,drawtext=fontfile=" + thumbnailFont + ":text=VIYZO:fontcolor=black:fontsize=32:x=78:y=68,drawtext=fontfile=" + thumbnailFont + ":textfile=" + titleFile + ":expansion=none:fontcolor=white:fontsize=44:line_spacing=12:x=58:y=h-th-48:fix_bounds=1";
       await run("ffmpeg", ["-y", "-ss", String(Math.min(3, Math.max(0, probe.durationSeconds / 3))), "-i", output, "-frames:v", "1", "-vf", filter, "-q:v", "3", thumbnail], { timeout: 60000, maxBuffer: 1024 * 1024, windowsHide: true });
       thumbnailStyle = "branded_title_overlay";
     } catch { await makePlainThumbnail(); }
