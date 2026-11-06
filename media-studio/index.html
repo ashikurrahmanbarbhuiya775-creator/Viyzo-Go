@@ -106,12 +106,33 @@ function renderProjects(){
     return '<article class="project-card"><div class="project-head"><div><div class="label">VIDEO PROJECT</div><h3>'+escapeHtml(p.prompt||p.topic||"Untitled video")+'</h3><p>'+escapeHtml(p.countryCode||p.country||"—")+' · '+escapeHtml(p.language||"—")+'</p></div><span class="pill">'+escapeHtml(p.status||"Draft")+'</span></div>'+
     (p.id?'<div class="action-group"><div class="action-title">01 · SCRIPT & PACKAGE</div><div class="action-buttons"><button class="btn" data-package="'+id+'">Research & prepare package</button><button class="btn secondary" data-script="'+id+'">Script</button><button class="btn secondary" data-metadata="'+id+'">Metadata</button></div></div>'+
     '<div class="action-group"><div class="action-title">02 · AI PRESENTER</div><div class="action-buttons"><button class="btn secondary" data-presenter="'+id+'">Generate presenter</button><button class="btn secondary" data-presenter-status="'+id+'">Check status</button><button class="btn" data-presenter-import="'+id+'" '+(p.presenterVideo?.status === "completed" ? "" : "disabled")+'>Import finished video</button></div></div>'+
-    '<div class="action-group"><div class="action-title">03 · VIDEO FILE & QUALITY</div><div class="action-buttons"><label class="btn secondary file-button">Upload source<input type="file" accept="video/mp4,video/webm,video/quicktime" data-upload="'+id+'" aria-label="Upload source video"></label><button class="btn" data-postproduce="'+id+'">Auto-produce + quality</button><button class="btn secondary" data-edit="'+id+'">Auto-edit only</button><button class="btn secondary" data-quality="'+id+'">Quality check</button></div></div>':'<p>Demo preview only. Connect the private API to enable actions.</p>')+'</article>';
+    '<div class="action-group"><div class="action-title">03 · VIDEO FILE & QUALITY</div><div class="action-buttons"><label class="btn secondary file-button">Upload source<input type="file" accept="video/mp4,video/webm,video/quicktime" data-upload="'+id+'" aria-label="Upload source video"></label><button class="btn" data-postproduce="'+id+'">Auto-produce + quality</button><button class="btn secondary" data-edit="'+id+'">Auto-edit only</button><button class="btn secondary" data-quality="'+id+'">Quality check</button></div></div>'+(p.qualityReport?.passed&&!p.ownerApproved?'<button class="btn" data-approve-publish="'+id+'">Approve video for Facebook</button>':'')+(p.ownerApproved&&!p.publishedVideo?'<button class="btn" data-publish-facebook="'+id+'">Publish to country Facebook Page</button>':'')+(p.publishedVideo?'<p class="notice">Published to '+escapeHtml(p.publishedVideo.pageName)+' · Video ID '+escapeHtml(p.publishedVideo.videoId)+'</p>':''):'<p>Demo preview only. Connect the private API to enable actions.</p>')+'</article>';
   }).join("")+'</div>':'<p>No video projects yet. Create your first project.</p>';
   document.getElementById("recent").innerHTML=content;
   document.getElementById("libraryList").innerHTML=content;
 }
 
+document.getElementById("libraryList").addEventListener("click",async e=>{
+  const approve=e.target.closest("[data-approve-publish]");
+  if(approve){
+    if(!apiConnected){alert("Connect the owner API first.");return;}
+    if(!confirm("Approve this quality-checked video for Facebook publishing? It will not publish until you press the separate Publish button."))return;
+    approve.disabled=true;
+    try{await apiFetch("/api/jobs/"+approve.dataset.approvePublish+"/approve-publish",{method:"POST",body:"{}"});document.getElementById("mediaStatus").textContent="Owner approval saved. Publishing remains a separate action.";await refreshJobs();}
+    catch(err){document.getElementById("mediaStatus").textContent="Approval failed: "+err.message;}
+    finally{approve.disabled=false;}
+    return;
+  }
+  const publish=e.target.closest("[data-publish-facebook]");
+  if(publish){
+    if(!apiConnected){alert("Connect the owner API first.");return;}
+    if(!confirm("Publish this video now to the Facebook Page assigned to its country?"))return;
+    publish.disabled=true;publish.textContent="Publishing…";
+    try{const result=await apiFetch("/api/jobs/"+publish.dataset.publishFacebook+"/publish",{method:"POST",body:"{}"});document.getElementById("mediaStatus").textContent="Published to "+result.job.publishedVideo.pageName+".";await refreshJobs();}
+    catch(err){document.getElementById("mediaStatus").textContent="Facebook publishing failed: "+err.message;}
+    finally{publish.disabled=false;publish.textContent="Publish to country Facebook Page";}
+  }
+});
 document.getElementById("libraryList").addEventListener("click",async e=>{
   const b=e.target.closest("[data-postproduce]");if(!b)return;
   if(!apiConnected){alert("Connect the owner API first.");return;}
