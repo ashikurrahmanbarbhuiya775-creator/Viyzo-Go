@@ -1,6 +1,6 @@
 # Meta / Facebook Pages connection — production checklist
 
-This repository does not currently have a Meta app ID, app secret, HTTPS callback URL, or Page authorization. Do not enable publishing until these prerequisites exist.
+The server includes a Meta OAuth, encrypted token-store, Page discovery/mapping and owner-approved video publishing adapter. It is NOT configured in the current Railway deployment: no Meta app credentials, encryption key, durable token volume or Page authorization are present. Do not enable publishing until all prerequisites exist.
 
 ## Required owner actions
 
@@ -43,7 +43,7 @@ Use a reviewed ISO country-code to real Meta Page ID mapping. Do not assume one 
 
 ## Current repository status
 
-Meta OAuth, encrypted token persistence, Page discovery, country mapping UI, Insights, and publishing are **not connected** in this scaffold. This document is a setup/security checklist, not a claim that a connection is active.
+Meta OAuth, encrypted token persistence, Page discovery, country mapping and publishing code are implemented, but remain **not configured or live-tested** in the current deployment. Page Insights integration is not implemented. Page creation remains disabled unless Meta explicitly allowlists the app. This document is a setup/security checklist, not a claim that a connection is active.
 
 ## Official documentation
 
