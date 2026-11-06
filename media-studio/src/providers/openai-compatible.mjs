@@ -42,7 +42,7 @@ export async function generateScriptDraft(job, env = process.env) {
         messages: [
           {
             role: "system",
-            content: "You are a careful current-affairs video journalist and multilingual scriptwriter. Write the complete narration and on-screen wording in the exact requested language (language tag); when language is ta, use natural, fluent Tamil script throughout, not transliteration. Use ONLY the supplied live country research report for factual claims. Never invent or extrapolate current events, statistics, quotes, sources, dates, or government achievements. Attribute claims to named sources and dates in narration or fact_check. Clearly flag uncertainty and material context; do not turn unsupported positive claims into praise. If evidence is weak or contradictory, say so and avoid the claim. Do not impersonate real people or imply government endorsement. Output valid JSON only with keys title, hook, scenes (array of objects with visual and narration), fact_check (array), and closing."
+            content: "You are a careful current-affairs video journalist and multilingual scriptwriter. Write the complete narration and on-screen wording in the exact requested language selected for this video. Never assume or force a language that the user did not request. Use ONLY the supplied live country research report for factual claims. Never invent or extrapolate current events, statistics, quotes, sources, dates, or government achievements. Attribute claims to named sources and dates in narration or fact_check. Clearly flag uncertainty and material context; do not turn unsupported positive claims into praise. If evidence is weak or contradictory, say so and avoid the claim. Do not impersonate real people or imply government endorsement. Output valid JSON only with keys title, hook, scenes (array of objects with visual and narration), fact_check (array), and closing."
           },
           {
             role: "user",
@@ -98,7 +98,7 @@ export async function generateMetadataDraft(job, env = process.env) {
         model: env.OPENAI_MODEL,
         temperature: 0.35,
         messages: [
-          { role: "system", content: "Create accurate, platform-ready video publishing metadata in the exact requested language; for ta, write fluent Tamil in Tamil script. Do not invent factual claims. Return valid JSON only with keys title, description, tags (array of concise search keywords), hashtags (array of 5–12 relevant hashtags, each beginning with #), thumbnailText, thumbnailImagePrompt. Include the country and topic naturally, avoid spam/repetition and unrelated trending tags. The image prompt must describe an original, non-infringing 16:9 thumbnail and must not depict real public figures or logos." },
+          { role: "system", content: "Create polished, accurate, platform-ready video packaging in the exact language requested by the user. Do not assume Tamil or any other language unless requested. Do not invent factual claims. Return valid JSON only with keys title, description, tags (array of concise search keywords), hashtags (array of 5–12 relevant hashtags, each beginning with #), thumbnailText (short, bold, readable headline of 3–7 words suitable for a professional 16:9 video thumbnail), and thumbnailImagePrompt (detailed image-generation prompt for an original, visually striking 16:9 thumbnail with clear focal subject, strong contrast, uncluttered composition, safe margins for headline text, and no real public figures or logos). Include the country and topic naturally, avoid spam/repetition and unrelated trending tags." },
           { role: "user", content: JSON.stringify({ brief: job.prompt, country_code: job.countryCode, language: job.language, duration_seconds: job.durationSeconds, script: job.scriptDraft || null }) }
         ],
         response_format: { type: "json_object" }
@@ -112,7 +112,7 @@ export async function generateMetadataDraft(job, env = process.env) {
     let metadata;
     try { metadata = JSON.parse(raw); } catch { return { ok: false, error: "invalid_provider_json" }; }
     if (typeof metadata.title !== "string" || typeof metadata.description !== "string" ||
-        !Array.isArray(metadata.tags) || !Array.isArray(metadata.hashtags) || typeof metadata.thumbnailImagePrompt !== "string") {
+        !Array.isArray(metadata.tags) || !Array.isArray(metadata.hashtags) || typeof metadata.thumbnailText !== "string" || typeof metadata.thumbnailImagePrompt !== "string") {
       return { ok: false, error: "invalid_metadata_schema" };
     }
     return { ok: true, metadata, model: env.OPENAI_MODEL };
