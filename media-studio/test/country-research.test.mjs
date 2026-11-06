@@ -12,7 +12,8 @@ test("live country research stays disabled without server credentials", async ()
 test("research engine reports its configured but unverified state", () => {
   const status = getCountryResearchStatus({ OPENAI_API_KEY: "test-key", OPENAI_MODEL: "test-model" });
   assert.equal(status.configured, true);
-  assert.equal(status.status, "configured_not_health_checked");
+  assert.equal(status.status, "configured_but_cost_locked");
+  assert.equal(status.paidCallsEnabled, false);
 });
 
 import { validateResearchReport } from "../src/domain/research-safety.mjs";
