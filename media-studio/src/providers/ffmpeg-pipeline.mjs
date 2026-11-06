@@ -117,12 +117,25 @@ export async function autoEditVideo(sourcePath, jobId, options = {}) {
   await mkdir(ROOT, { recursive: true, mode: 0o700 });
   await chmod(ROOT, 0o700);
   const probe = await inspectVideo(input);
+  // Short fades avoid abrupt starts/stops while preserving the full spoken content.
+  const fadeInSeconds = Math.min(0.35, probe.durationSeconds / 8);
+  const fadeOutSeconds = Math.min(0.45, probe.durationSeconds / 8);
+  const fadeOutStart = Math.max(fadeInSeconds, probe.durationSeconds - fadeOutSeconds);
+  const videoFilter = [
+    "scale=1920:1080:force_original_aspect_ratio=decrease",
+    "pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
+    "setsar=1",
+    "fps=30",
+    "fade=t=in:st=0:d=" + fadeInSeconds.toFixed(3),
+    "fade=t=out:st=" + fadeOutStart.toFixed(3) + ":d=" + fadeOutSeconds.toFixed(3)
+  ].join(",");
+  const audioFilter = "loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=in:st=0:d=" + fadeInSeconds.toFixed(3) + ",afade=t=out:st=" + fadeOutStart.toFixed(3) + ":d=" + fadeOutSeconds.toFixed(3);
   const args = [
     "-y", "-i", input,
     "-map", "0:v:0", "-map", "0:a?",
-    "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30",
+    "-vf", videoFilter,
     "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-    ...(probe.hasAudio ? ["-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-c:a", "aac", "-b:a", "192k"] : ["-an"]),
+    ...(probe.hasAudio ? ["-af", audioFilter, "-c:a", "aac", "-b:a", "192k"] : ["-an"]),
     "-movflags", "+faststart", output
   ];
   await run("ffmpeg", args, { timeout: 20 * 60 * 1000, maxBuffer: 4 * 1024 * 1024, windowsHide: true });
@@ -155,7 +168,8 @@ export async function autoEditVideo(sourcePath, jobId, options = {}) {
     thumbnailStyle,
     thumbnailHeadline: headline,
     source: probe,
-    profile: "1080p-30fps-h264-aac-loudness-normalized"
+    profile: "1080p-30fps-h264-aac-loudness-normalized-fade-in-out",
+    transitions: { videoFadeInSeconds: fadeInSeconds, videoFadeOutSeconds: fadeOutSeconds, audioFades: probe.hasAudio }
   };
 }
 
