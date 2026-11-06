@@ -24,6 +24,7 @@ const ownerAuth = createOwnerAuth(OWNER_PASSWORD_HASH);
 const SESSION_COOKIE = "viyzo_owner";
 const loginFailures = new Map();
 const metaOAuthStates = new Map();
+const publishingJobs = new Set();
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_FAILURES = 8;
 function loginBlocked(ip) {
@@ -274,18 +275,32 @@ const server = http.createServer(async (req, res) => {
       if (job.publishedVideo?.videoId || job.publishState === "published") return send(res, 409, { error: "already_published" });
       const mediaKey = job.processedMedia.editedKey;
       if (mediaKey !== id + "-edited.mp4") return send(res, 409, { error: "edited_video_file_missing" });
-      const result = await publishMetaVideo({
-        countryCode: job.countryCode,
-        videoPath: resolve(MEDIA_DIR, mediaKey),
-        title: job.metadataDraft?.title || job.scriptDraft?.title || job.prompt,
-        description: job.metadataDraft?.description || job.prompt
-      });
-      if (!result.ok) return send(res, result.error === "meta_not_connected" ? 503 : result.error === "country_page_not_mapped" ? 409 : 502, { error: result.error, providerCode: result.providerCode || null });
-      job.publishedVideo = { provider: "meta", pageId: result.pageId, pageName: result.pageName, videoId: result.videoId, postId: result.postId, publishedAt: new Date().toISOString() };
-      job.publishState = "published";
-      job.targetPage = { countryCode: job.countryCode, pageId: result.pageId, pageName: result.pageName, status: "published" };
-      job.updatedAt = job.publishedVideo.publishedAt;
+      if (publishingJobs.has(id) || job.publishState === "publishing") return send(res, 409, { error: "publish_already_in_progress" });
+      publishingJobs.add(id);
+      job.publishState = "publishing";
       await saveStore(store);
+      try {
+        const result = await publishMetaVideo({
+          countryCode: job.countryCode,
+          videoPath: resolve(MEDIA_DIR, mediaKey),
+          title: job.metadataDraft?.title || job.scriptDraft?.title || job.prompt,
+          description: job.metadataDraft?.description || job.prompt
+        });
+        if (!result.ok) {
+          job.publishState = ["meta_publish_timeout", "meta_publish_unavailable"].includes(result.error) ? "publish_outcome_unknown" : "ready_for_explicit_publish_action";
+          job.updatedAt = new Date().toISOString();
+          await saveStore(store);
+          return send(res, result.error === "meta_not_connected" ? 503 : result.error === "country_page_not_mapped" ? 409 : 502, { error: result.error, providerCode: result.providerCode || null, publishState: job.publishState });
+        }
+        job.publishedVideo = { provider: "meta", pageId: result.pageId, pageName: result.pageName, videoId: result.videoId, postId: result.postId, publishedAt: new Date().toISOString() };
+        job.publishState = "published";
+        job.targetPage = { countryCode: job.countryCode, pageId: result.pageId, pageName: result.pageName, status: "published" };
+        job.updatedAt = job.publishedVideo.publishedAt;
+        await saveStore(store);
+        return send(res, 200, { job, message: "Video published to the authorized Facebook Page." });
+      } finally {
+        publishingJobs.delete(id);
+      }
       return send(res, 200, { job, message: "Video published to the authorized Facebook Page." });
     }
 
