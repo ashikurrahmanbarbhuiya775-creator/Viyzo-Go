@@ -298,7 +298,7 @@ async function refreshMetaPages(){
 window.addEventListener("message",event=>{if(event.origin!==location.origin||event.data?.type!=="viyzo-meta-connected")return;refreshMetaPages();document.getElementById("metaConnectionStatus").textContent="Facebook account connected. Loading your Pages…";});
 document.getElementById("createCountryPage").addEventListener("click",async()=>{
   const country=document.getElementById("country"),option=country.selectedOptions[0];
-  const countryName=(option?.textContent||"").replace(/^\\p{Regional_Indicator}{2}\\s*/u,"").trim();
+  const countryName=(option?.textContent||"").replace(/^\p{Regional_Indicator}{2}\s*/u,"").trim();
   const countryCode=country.value;
   if(!apiConnected){document.getElementById("metaConnectionStatus").textContent="Sign in to the Owner API first.";return;}
   if(!confirm("Ask Meta to create a new Facebook Page named Viyzo "+countryName+" and assign it to "+countryName+"?"))return;
