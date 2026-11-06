@@ -294,6 +294,7 @@ async function refreshMetaPages(){
   }catch(e){statusNode.textContent="Facebook connection status unavailable: "+e.message;listNode.textContent="";button.disabled=true;}
 }
 
+window.addEventListener("message",event=>{if(event.origin!==location.origin||event.data?.type!=="viyzo-meta-connected")return;refreshMetaPages();document.getElementById("metaConnectionStatus").textContent="Facebook account connected. Loading your Pages…";});
 document.getElementById("createCountryPage").addEventListener("click",async()=>{
   const country=document.getElementById("country"),option=country.selectedOptions[0];
   const countryName=(option?.textContent||"").replace(/^\\p{Regional_Indicator}{2}\\s*/u,"").trim();
@@ -309,7 +310,7 @@ document.getElementById("connectMeta").addEventListener("click",async()=>{
   const button=document.getElementById("connectMeta");
   if(!apiConnected){document.getElementById("metaConnectionStatus").textContent="Sign in to the Owner API first.";return;}
   button.disabled=true;
-  try{const result=await apiFetch("/api/meta/login-url",{method:"POST",body:"{}"});window.location.assign(result.url);}
+  try{const result=await apiFetch("/api/meta/login-url",{method:"POST",body:"{}"});const popup=window.open(result.url,"viyzoMetaConnect","popup,width=600,height=760");if(!popup)window.location.assign(result.url);}
   catch(e){document.getElementById("metaConnectionStatus").textContent="Facebook setup: "+e.message;button.disabled=false;}
 });
 
