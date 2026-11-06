@@ -13,3 +13,11 @@ test("text engine reports configured only when key and model exist", () => {
   assert.equal(status.configured, true);
   assert.equal(status.model, "example-model");
 });
+
+
+test("configured text engine remains cost-locked until explicit owner opt-in", () => {
+  const status = getTextEngineStatus({ OPENAI_API_KEY: "secret", OPENAI_MODEL: "example-model" });
+  assert.equal(status.configured, true);
+  assert.equal(status.paidCallsEnabled, false);
+  assert.equal(status.status, "configured_but_cost_locked");
+});
