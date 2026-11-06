@@ -712,7 +712,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { job: result.job });
     }
 
-    // Deliberately no upload or publishing endpoint exists in this development scaffold.
+    // Unknown routes are rejected; upload, owner-approved publish and processing routes are defined above.
     return send(res, 404, { error: "not_found" });
   } catch (error) {
     return send(res, error.status || 500, { error: error.status ? error.message : "internal_error" });
