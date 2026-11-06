@@ -14,6 +14,7 @@ import { getTextEngineStatus, generateScriptDraft, generateMetadataDraft } from 
 import { getCountryResearchStatus, researchCountry } from "./src/providers/country-research.mjs";
 import { extensionForMime, inspectVideo, autoEditVideo, qualityCheckVideo, getMediaEngineStatus, MEDIA_LIMITS } from "./src/providers/ffmpeg-pipeline.mjs";
 import { getAvatarEngineStatus, generateAvatarVideo, getAvatarVideoStatus, isTrustedAvatarVideoUrl } from "./src/providers/heygen-avatar.mjs";
+import { getMetaStatus, createMetaLoginUrl, finishMetaLogin, listMetaPages, mapMetaPage } from "./src/providers/meta-pages.mjs";
 
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 8787);
@@ -22,6 +23,7 @@ const OWNER_PASSWORD_HASH = process.env.OWNER_PASSWORD_HASH || "";
 const ownerAuth = createOwnerAuth(OWNER_PASSWORD_HASH);
 const SESSION_COOKIE = "viyzo_owner";
 const loginFailures = new Map();
+const metaOAuthStates = new Map();
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_FAILURES = 8;
 function loginBlocked(ip) {
@@ -146,6 +148,32 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ ok: true }));
     }
 
+
+    if (req.method === "GET" && url.pathname === "/auth/meta/start") {
+      if (!authMethod(req)) return send(res, 401, { error: "unauthorized" });
+      const status = getMetaStatus();
+      if (!status.configured) return send(res, 503, { error: "meta_setup_incomplete", status });
+      const state = randomUUID() + randomUUID();
+      metaOAuthStates.set(state, Date.now() + 10 * 60 * 1000);
+      res.writeHead(302, { location: createMetaLoginUrl(state), "cache-control": "no-store", "set-cookie": "viyzo_meta_state=" + state + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=600" });
+      return res.end();
+    }
+    if (req.method === "GET" && url.pathname === "/auth/meta/callback") {
+      const state = url.searchParams.get("state") || "";
+      const cookieState = cookieValue(req, "viyzo_meta_state");
+      const expires = metaOAuthStates.get(state);
+      metaOAuthStates.delete(state);
+      if (!state || state !== cookieState || !expires || expires < Date.now()) return send(res, 403, { error: "meta_oauth_state_invalid" });
+      if (url.searchParams.get("error")) return sendHtml(res, "<h2>Facebook connection was not completed.</h2><p>You can close this window and return to Viyzo.</p>");
+      const code = url.searchParams.get("code") || "";
+      if (!code) return send(res, 400, { error: "meta_oauth_code_missing" });
+      try {
+        const pages = await finishMetaLogin(code);
+        return sendHtml(res, "<!doctype html><meta charset=utf-8><title>Facebook connected</title><h2>Facebook connected to Viyzo.</h2><p>" + pages.length + " managed Pages discovered. Return to Viyzo Settings to assign country Pages.</p><script>try{window.opener&&window.opener.postMessage({type:'viyzo-meta-connected'},location.origin)}catch(e){}</script>");
+      } catch (error) { return send(res, 502, { error: error.message || "meta_connection_failed" }); }
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/meta/status") return send(res, 200, getMetaStatus());
     if (req.method === "GET" && url.pathname === "/api/system-status") {
       let storageWritable = false;
       let storageBytes = null;
@@ -174,7 +202,7 @@ const server = http.createServer(async (req, res) => {
         checks: {
           ownerAuthentication: ownerAuth.configured ? "configured" : "not_configured",
           backup: "operator_managed",
-          publishing: "not_configured"
+          publishing: getMetaStatus().configured ? "oauth_ready_not_connected" : "not_configured", meta: getMetaStatus()
         }
       });
     }
@@ -193,6 +221,9 @@ const server = http.createServer(async (req, res) => {
       }
       return send(res, 200, buildGrowthRecommendations(metrics));
     }
+
+    if (req.method === "GET" && url.pathname === "/api/meta/pages") return send(res, 200, await listMetaPages());
+    if (req.method === "PUT" && url.pathname === "/api/meta/mapping") { const body = await readBody(req); try { return send(res, 200, await mapMetaPage(String(body.countryCode || "").toUpperCase(), body.pageId)); } catch (e) { return send(res, 422, { error: e.message }); } }
 
     if (req.method === "GET" && url.pathname === "/api/jobs") {
       const store = await readStore();
