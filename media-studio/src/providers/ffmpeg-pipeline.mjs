@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, stat, chmod } from "node:fs/promises";
+import { mkdir, stat, chmod, writeFile, unlink } from "node:fs/promises";
 import { dirname, extname, resolve, sep } from "node:path";
 
 const run = promisify(execFile);
@@ -65,7 +65,30 @@ export async function inspectVideo(filePath) {
   };
 }
 
-export async function autoEditVideo(sourcePath, jobId) {
+export function formatThumbnailHeadline(value) {
+  const cleaned = String(value || "").replace(/[\\u0000-\\u001f\\u007f]/g, " ").replace(/\\s+/g, " ").trim().slice(0, 120);
+  if (!cleaned) return "VIYZO VIDEO";
+  const words = cleaned.split(" ");
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const candidate = line ? line + " " + word : word;
+    if (candidate.length > 28 && line) {
+      lines.push(line); line = word;
+      if (lines.length === 2) break;
+    } else line = candidate;
+  }
+  if (lines.length < 3 && line) lines.push(line);
+  return lines.join("\\n").slice(0, 120);
+}
+
+async function findThumbnailFont() {
+  const candidates = ["/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"];
+  for (const candidate of candidates) { try { await stat(candidate); return candidate; } catch {} }
+  return null;
+}
+
+export async function autoEditVideo(sourcePath, jobId, options = {}) {
   const input = resolve(sourcePath);
   if (!input.startsWith(ROOT + sep)) throw new Error("media_path_outside_storage");
   const output = mediaPath(jobId, "-edited.mp4");
@@ -82,12 +105,25 @@ export async function autoEditVideo(sourcePath, jobId) {
     "-movflags", "+faststart", output
   ];
   await run("ffmpeg", args, { timeout: 20 * 60 * 1000, maxBuffer: 4 * 1024 * 1024, windowsHide: true });
-  await run("ffmpeg", [
+  const thumbnailFont = await findThumbnailFont();
+  const titleFile = mediaPath(jobId, "-thumbnail-title.txt");
+  const headline = formatThumbnailHeadline(options.thumbnailText || options.title || options.prompt);
+  let thumbnailStyle = "clean_video_frame";
+  const makePlainThumbnail = () => run("ffmpeg", [
     "-y", "-ss", String(Math.min(3, Math.max(0, probe.durationSeconds / 3))),
     "-i", output, "-frames:v", "1",
     "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
     "-q:v", "3", thumbnail
   ], { timeout: 60000, maxBuffer: 1024 * 1024, windowsHide: true });
+  if (thumbnailFont) {
+    await writeFile(titleFile, headline, { encoding: "utf8", mode: 0o600 });
+    try {
+      const filter = "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,drawbox=x=0:y=ih-218:w=iw:h=218:color=black@0.62:t=fill,drawtext=fontfile=" + thumbnailFont + ":textfile=" + titleFile + ":expansion=none:fontcolor=white:fontsize=44:line_spacing=12:x=58:y=h-th-48:fix_bounds=1";
+      await run("ffmpeg", ["-y", "-ss", String(Math.min(3, Math.max(0, probe.durationSeconds / 3))), "-i", output, "-frames:v", "1", "-vf", filter, "-q:v", "3", thumbnail], { timeout: 60000, maxBuffer: 1024 * 1024, windowsHide: true });
+      thumbnailStyle = "branded_title_overlay";
+    } catch { await makePlainThumbnail(); }
+    finally { await unlink(titleFile).catch(() => {}); }
+  } else await makePlainThumbnail();
   await Promise.all([chmod(output, 0o600), chmod(thumbnail, 0o600)]);
   const [editedInfo, thumbnailInfo] = await Promise.all([stat(output), stat(thumbnail)]);
   return {
@@ -95,6 +131,8 @@ export async function autoEditVideo(sourcePath, jobId) {
     thumbnailPath: thumbnail,
     editedBytes: editedInfo.size,
     thumbnailBytes: thumbnailInfo.size,
+    thumbnailStyle,
+    thumbnailHeadline: headline,
     source: probe,
     profile: "1080p-30fps-h264-aac-loudness-normalized"
   };
