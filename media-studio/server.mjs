@@ -262,7 +262,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { job, message: "Owner approval recorded. Publishing still requires a separate explicit action." });
     }
 
-    const publishMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/publish$/i);
+    const publishMatch = url.pathname.match(/^\/api\/jobs\/([0-9a-f-]{36})\/publish$/i);
     if (req.method === "POST" && publishMatch) {
       const [, id] = publishMatch;
       const store = await readStore();
