@@ -1,44 +1,41 @@
 # Viyzo AI Media Studio
 
-This is an isolated workspace under `media-studio/` on the `media-studio-isolated` branch. It does not modify the Android app source, Gradle configuration, Viyzo Worker web project, or its backend.
+Isolated workspace on branch `media-studio-isolated`. It does not modify the Viyzo Worker Android app, its Supabase project, or its existing workflows.
 
-## What is included
-- Private-workspace dashboard demo (`index.html`)
-- Country/language/duration prompt form and in-browser project list
-- Post-production workflow preview: research, script, voice, render, auto-edit, metadata, thumbnail, quality check, owner review
-- Supervisor panel showing all provider engines as disconnected
-- Node.js API with salted-scrypt owner password login, expiring HttpOnly sessions, local JSON persistence and same-origin dashboard hosting
-- Private local media vault with restrictive directory/file permissions (not cloud storage)
-- Explicit owner-triggered script and metadata/thumbnail-brief generation via an optional OpenAI-compatible text provider\n- Owner-authenticated MP4/WebM/MOV upload, FFprobe validation, FFmpeg 1080p auto-edit and JPEG thumbnail extraction
-- Video-job validation, ordered stage transitions and explicit owner-approval gate
-- Tests and architecture/security notes
+## Implemented code
 
-## Frontend demo
-Run the backend as described below, then open `http://127.0.0.1:8787/`. The dashboard is served by the same-origin local API and can create/list jobs. You can also open `index.html` as a visual-only demo. Use the Library actions to explicitly request script or metadata drafts; each request may incur provider charges once credentials are configured.
+- Node.js owner dashboard/API with salted-scrypt password login, HttpOnly session cookies, same-origin checks and login rate limiting.
+- Country/language/topic job creation and job-stage validation.
+- Optional OpenAI-compatible script and video-metadata generation adapter, including title, description, tags, hashtags, thumbnail headline and a 16:9 thumbnail image prompt.
+- Live country research adapter using OpenAI Responses web search, with cited-source validation before script generation.
+- Optional HeyGen avatar/video generation adapter and status polling.
+- Owner-authenticated video upload, FFprobe validation, FFmpeg 1080p formatting/audio normalization, extracted JPEG frame thumbnail and technical quality checks.
+- Visual-asset provenance checks and explicit owner review/approval gates.
+- Meta OAuth, encrypted server-side token storage, Facebook Page discovery, country-to-Page mapping, optional allowlisted Page creation, and separate owner-approved video publishing adapter.
+- Android WebView wrapper for the hosted dashboard with native speech recognition bridge.
+- Automated Node tests, container build checks and Android debug APK workflow.
 
-## Backend local setup
-Requires Node.js 20+ and FFmpeg/FFprobe installed on the server.
+## Current production deployment status
 
-1. From this folder, copy `.env.example` to `.env`.
-2. Generate a password hash by piping your long owner password into scripts/hash-owner-password.mjs.
-3. Put the returned value in OWNER_PASSWORD_HASH; set OWNER_ACCESS_TOKEN only if local bearer access is also needed.
-4. Export the variables in your shell (the server intentionally does not load .env automatically).
-5. Run npm test, then npm start.
+- Railway service is live at https://media-studio-production-33a2.up.railway.app/.
+- Current configured environment contains the owner password hash only; OpenAI, HeyGen and Meta provider credentials are not configured.
+- Paid AI calls are blocked by default. Do not enable them until the owner chooses provider accounts and a spending limit.
+- The Railway service currently has no persistent volume attached. Job records, uploaded videos and encrypted Meta tokens are therefore not guaranteed to survive container replacement/redeployment. Do not use it for important production media until durable private storage is configured and restore-tested.
+- Meta app credentials, encryption key, durable token storage, Page permissions/review and country Page mappings are missing. Facebook connection/publishing is not live.
+- The current APK is a debug WebView shell loading the hosted dashboard; it is not a standalone offline video editor or a Play Store release.
 
-The API binds to localhost by default. Sign in from the Supervisor panel using the owner password. The session is HttpOnly, SameSite=Strict and expires after 12 hours. Create a job and explicitly click Generate script to request a provider call. See `docs/ARCHITECTURE.md` for routes and `docs/SECURITY.md` for limitations. GitHub Actions runs Node checks and API tests on this isolated branch.
+## Important video-generation limits
 
-## Important limitations
-An optional OpenAI-compatible text adapter for script and metadata drafts is implemented but remains OFF until server-side `OPENAI_API_KEY` and `OPENAI_MODEL` are configured. Provider use may incur charges. No actual text provider has been connected or tested. Voice generation, AI presenter/video generation, cloud storage, production database, OAuth integration, or social publishing is connected. Uploaded and processed media remains on local disk with restrictive file permissions; this is not cloud backup or disk encryption. FFmpeg performs deterministic local formatting/normalization and frame extraction; it is not generative AI and does not remove silences or add AI scenes. No video is generated or uploaded. No paid service or cloud resource is created. Publishing remains unavailable until proper provider integrations, authorization, and a separate explicit owner action are implemented.
+- Script and metadata generation require a configured OpenAI-compatible provider and the cost guard to be explicitly enabled.
+- Human-like avatar narration/video requires a configured HeyGen API key and avatar ID, plus explicit paid-call authorization.
+- The current FFmpeg processor edits an uploaded source video, normalizes/encodes it and extracts a frame thumbnail. It does not independently invent scenes, generate footage, compose a finished video from a topic, create timed captions, remove silences, or design an AI-generated thumbnail image.
+- The metadata adapter creates a thumbnail image prompt and headline; an image-generation provider and image composition/export step are not yet integrated.
+- No real end-to-end country/topic-to-published-video test has passed. No public Facebook publishing should be attempted before owner review and a private test.
+
+## Local setup
+
+Requires Node.js 20+ and FFmpeg/FFprobe. Copy `.env.example`, generate an owner password hash with `scripts/hash-owner-password.mjs`, configure environment variables on the server (never commit secrets), then run `npm run check` and `npm start`.
 
 ## Isolation and change control
-All work is on `media-studio-isolated`. Do not merge to `main` until the owner reviews the isolated folder and confirms. Never reuse the Viyzo Worker Supabase project or credentials for this product.
 
-
-## Live country research gate
-
-Before a script/package can be drafted, the owner workflow runs a fresh country-specific web research pass using the OpenAI Responses API web-search tool. The report records its research timestamp, cited source URLs, recent developments, supported positive points, claims to avoid, and unanswered questions. Script generation is blocked unless the job contains at least two cited source URLs. Research is not a guarantee that every claim is true: the owner must review the sources and report before approving production. Configure `OPENAI_API_KEY` and `OPENAI_MODEL` on the server; web-search and model usage may incur provider charges. The research route is `POST /api/jobs/:id/research`; package preparation runs it automatically when no valid report is present. No provider key is committed to the repository.
-
-
-## Visual evidence safety gate
-
-The owner-only endpoint `POST /api/jobs/:id/visual-assets` accepts a JSON body with an `assets` array and validates visual provenance before saving a manifest. Every asset must declare a supported kind, provenance type, depicted country code and visible caption. Verified-source and licensed-stock items require HTTPS source URL, source name, usage-rights/license note, attribution and an explicit location-verification flag. AI-generated visuals must carry the exact disclosure `AI-generated illustration` and cannot be labelled as actual footage. Map items must name their map provider. The validator is a metadata/manifest gate: it does not independently prove that a URL is reputable, a license is legally sufficient, or a scene truly depicts the claimed location. A human editor must verify the underlying media and rights before publication.
+All Media Hub changes remain under `media-studio/` on `media-studio-isolated`. Do not merge into `main` or change the Viyzo Worker backend/workflows without separate explicit approval.
