@@ -1,3 +1,4 @@
+import { isPaidAiAllowed } from "../domain/resource-policy.mjs";
 import { validateResearchReport } from "../domain/research-safety.mjs";
 
 const API = "https://api.openai.com/v1/responses";
@@ -8,7 +9,8 @@ export function getCountryResearchStatus(env = process.env) {
     id: "live_country_research",
     name: "Live country and current-affairs research",
     configured,
-    status: configured ? "configured_not_health_checked" : "not_configured",
+    status: !configured ? "not_configured" : isPaidAiAllowed(env) ? "configured_not_health_checked" : "configured_but_cost_locked",
+    paidCallsEnabled: isPaidAiAllowed(env),
     note: configured
       ? "Uses live web search for each requested country. Provider usage may incur charges."
       : "Configure the OpenAI API key and model before current-affairs research can run."
@@ -17,6 +19,7 @@ export function getCountryResearchStatus(env = process.env) {
 
 export async function researchCountry(job, env = process.env, now = new Date()) {
   if (!getCountryResearchStatus(env).configured) return { ok: false, error: "research_engine_not_configured" };
+  if (!isPaidAiAllowed(env)) return { ok: false, error: "paid_ai_cost_guard_blocked" };
   const countryNames = new Intl.DisplayNames(["en"], { type: "region" });
   const country = countryNames.of(job.countryCode) || job.countryCode;
   const generatedAt = now.toISOString();
