@@ -152,7 +152,7 @@ test("FFmpeg upload, auto-edit and thumbnail endpoints work end-to-end", { skip:
     const editedData = await edited.json();
     assert.equal(editedData.job.processedMedia.status, "ready_for_owner_review");
     assert.ok(["branded_title_overlay", "clean_video_frame"].includes(editedData.job.processedMedia.thumbnailStyle));
-    assert.match(editedData.job.processedMedia.thumbnailHeadline.replace(/\\s+/g, " "), /educational video about Japan/i);
+    assert.match(editedData.job.processedMedia.thumbnailHeadline.replace(/\s+/g, " "), /educational video about Japan/i);
     const quality = await fetch(base + "/api/jobs/" + job.id + "/quality-check", { method: "POST", headers, body: "{}" });
     assert.equal(quality.status, 200);
     const qualityData = await quality.json();
