@@ -106,7 +106,7 @@ public class MainActivity extends Activity {
         root.addView(offline, new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         setContentView(root);
-        webView.loadUrl("file:///android_asset/index.html");
+        webView.loadUrl("https://media-studio-production-33a2.up.railway.app/");
     }
 
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
