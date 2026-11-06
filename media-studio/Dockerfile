@@ -2,7 +2,7 @@ FROM node:22-bookworm-slim
 
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8787 DATA_FILE=/data/jobs.json
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg fonts-noto-core ca-certificates \
+ && apt-get install -y --no-install-recommends ffmpeg fonts-noto-core fonts-dejavu-core ca-certificates \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /app /data \
  && chown -R node:node /app /data
