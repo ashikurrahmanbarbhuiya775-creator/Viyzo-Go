@@ -38,6 +38,7 @@ export function createVideoJob(input, now = new Date().toISOString(), id = crypt
     ownerApproved: false,
     publishState: "locked",
     targetPage: { countryCode: result.value.countryCode, status: "not_connected", policy: "one_page_per_country" },
+    audienceTarget: { countryCode: result.value.countryCode, policy: "country_focused", enforcement: "platform_dependent" },
     createdAt: now,
     updatedAt: now
   };
