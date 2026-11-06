@@ -1,3 +1,4 @@
+import { isPaidAiAllowed } from "../domain/resource-policy.mjs";
 import { validateResearchReport } from "../domain/research-safety.mjs";
 
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
@@ -8,7 +9,8 @@ export function getTextEngineStatus(env = process.env) {
     id: "text_generation",
     name: "OpenAI-compatible text generation",
     configured,
-    status: configured ? "configured_not_health_checked" : "not_configured",
+    status: !configured ? "not_configured" : isPaidAiAllowed(env) ? "configured_not_health_checked" : "configured_but_cost_locked",
+    paidCallsEnabled: isPaidAiAllowed(env),
     model: configured ? env.OPENAI_MODEL : null,
     note: configured ? "Server-side credentials detected; provider call occurs only when owner requests script generation." : "Set OPENAI_API_KEY and OPENAI_MODEL on the server to enable."
   };
@@ -20,6 +22,7 @@ export async function generateScriptDraft(job, env = process.env) {
   // a separate hard prerequisite and returns a conflict until verified.
   const status = getTextEngineStatus(env);
   if (!status.configured) return { ok: false, error: "text_engine_not_configured" };
+  if (!isPaidAiAllowed(env)) return { ok: false, error: "paid_ai_cost_guard_blocked" };
   if (!validateResearchReport(job.researchReport, job.countryCode).ok) return { ok: false, error: "verified_research_required" };
 
   const base = (env.OPENAI_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
