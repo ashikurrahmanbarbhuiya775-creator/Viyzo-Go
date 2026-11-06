@@ -10,7 +10,7 @@ function encryptionKey() {
   return Buffer.from(raw, "hex");
 }
 export function getMetaStatus() {
-  const required = ["META_APP_ID", "META_APP_SECRET", "META_OAUTH_REDIRECT_URI", "META_TOKEN_ENCRYPTION_KEY"];
+  const required = ["META_APP_ID", "META_APP_SECRET", "META_OAUTH_REDIRECT_URI", "META_TOKEN_ENCRYPTION_KEY", "META_TOKEN_STORE_FILE"];
   const missing = required.filter(k => !process.env[k]);
   return {
     configured: missing.length === 0 && !!encryptionKey(),
