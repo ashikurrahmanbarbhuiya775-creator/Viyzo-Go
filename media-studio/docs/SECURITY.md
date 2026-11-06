@@ -12,7 +12,7 @@
 - Request bodies are limited to 32 KiB; JSON responses disable caching and set nosniff / restrictive CSP headers.
 - Local media directory is mode 0700; uploaded source and generated media files are mode 0600 on POSIX systems.
 - Uploads are type-allowlisted, size-limited and probed with FFprobe before being accepted.
-- No public signup, external cloud bucket, OAuth or social publish endpoint is implemented.
+- No public signup or external cloud bucket is configured. Meta OAuth, encrypted token storage, Page mapping and owner-approved publishing routes exist in code but remain unavailable until production Meta credentials, durable private storage, permissions and review are configured.
 
 ## Configure owner login
 1. Generate a salted hash without committing the plaintext password by piping it to scripts/hash-owner-password.mjs.
@@ -23,7 +23,7 @@
 Use a unique password of at least 12 characters. Protect the environment file and never send the password or hash in chat or commit it to Git.
 
 ## Not production security
-This is a local development owner-login foundation, not a production identity platform. Sessions are memory-only and are lost on restart; there is no password reset, MFA, account recovery, persistent session store, distributed rate limiting, audit trail, malware scan, backup/restore or multi-device session manager. Do not expose this API to the public internet.
+This is a private single-owner beta login foundation, not a production identity platform. Sessions are memory-only and are lost on restart; there is no password reset, MFA, account recovery, persistent session store, distributed rate limiting, audit trail, malware scan, automatic backup or multi-device session manager. Do not expose this API to the public internet.
 
 Private media is stored on the server's local disk, not cloud storage. Local file permissions do not encrypt the disk or provide remote backups. Before remote deployment, add a separate private object-storage account, encrypted transport and at-rest encryption, short-lived signed access, resumable uploads, quotas, malware/content scanning, persistent database-backed sessions, MFA, monitoring and recovery.
 
