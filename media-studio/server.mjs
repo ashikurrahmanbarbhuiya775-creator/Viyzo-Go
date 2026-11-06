@@ -15,7 +15,7 @@ import { getCountryResearchStatus, researchCountry } from "./src/providers/count
 import { extensionForMime, inspectVideo, autoEditVideo, qualityCheckVideo, getMediaEngineStatus, MEDIA_LIMITS } from "./src/providers/ffmpeg-pipeline.mjs";
 import { getAvatarEngineStatus, generateAvatarVideo, getAvatarVideoStatus, isTrustedAvatarVideoUrl } from "./src/providers/heygen-avatar.mjs";
 
-const HOST = process.env.HOST || "127.0.0.1";
+const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 8787);
 const OWNER_TOKEN = process.env.OWNER_ACCESS_TOKEN || "";
 const OWNER_PASSWORD_HASH = process.env.OWNER_PASSWORD_HASH || "";
