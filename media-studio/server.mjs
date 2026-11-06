@@ -397,7 +397,7 @@ const server = http.createServer(async (req, res) => {
       const validSourceKey = [id + "-source.mp4", id + "-source.webm", id + "-source.mov"].includes(source?.storageKey);
       if (!validSourceKey) return send(res, 409, { error: "source_video_required" });
       try {
-        const result = await autoEditVideo(resolve(MEDIA_DIR, source.storageKey), id);
+        const result = await autoEditVideo(resolve(MEDIA_DIR, source.storageKey), id, { thumbnailText: job.metadataDraft?.thumbnailText || job.metadataDraft?.title || job.scriptDraft?.title || job.prompt });
         const qualityReport = await qualityCheckVideo(result.outputPath);
         job.processedMedia = {
           editedKey: id + "-edited.mp4",
@@ -434,7 +434,7 @@ const server = http.createServer(async (req, res) => {
       const validSourceKey = [id + "-source.mp4", id + "-source.webm", id + "-source.mov"].includes(source?.storageKey);
       if (!validSourceKey) return send(res, 409, { error: "source_video_required" });
       try {
-        const result = await autoEditVideo(resolve(MEDIA_DIR, source.storageKey), id);
+        const result = await autoEditVideo(resolve(MEDIA_DIR, source.storageKey), id, { thumbnailText: store.jobs[index].metadataDraft?.thumbnailText || store.jobs[index].metadataDraft?.title || store.jobs[index].scriptDraft?.title || store.jobs[index].prompt });
         store.jobs[index].processedMedia = {
           editedKey: id + "-edited.mp4",
           thumbnailKey: id + "-thumbnail.jpg",
