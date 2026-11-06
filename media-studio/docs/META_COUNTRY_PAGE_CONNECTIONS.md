@@ -20,24 +20,27 @@
 - Page publishing is for Facebook Pages, not personal profiles. A person must have sufficient Page tasks/permissions.
 - Do not assume every country can publish without regional, account, Page, or Meta policy restrictions. Surface Meta API errors to the owner.
 
+## Page creation limitation
+
+Meta documents Page creation through the User Accounts / Pages API, but creation is restricted to test users or apps that Meta has explicitly allowlisted. Viyzo therefore keeps automatic Page creation OFF by default. The Settings button only becomes active when the owner configures `META_PAGE_CREATION_ENABLED=true` after Meta confirms allowlisting and the required permission is granted. It creates one Page for the selected country at a time, then verifies the returned Page token and `CREATE_CONTENT` task before assigning it. If Meta rejects the request, Viyzo must not pretend a Page was created.
+
 ## Server-side configuration still required
 
 - `META_APP_ID`
 - `META_APP_SECRET`
 - `META_OAUTH_REDIRECT_URI`
-- A persistent encrypted token store and encryption key managed outside source control.
-- OAuth state/CSRF validation, short-lived authorization-code exchange, token expiry/revocation handling, and a disconnect/revoke action.
-- Country-to-Page mapping with owner confirmation and audit history.
+- `META_TOKEN_ENCRYPTION_KEY` (32-byte AES-256-GCM key, hex-encoded)
+- `META_TOKEN_STORE_FILE` on durable private storage (not an ephemeral container filesystem)
+- `META_PAGE_CREATION_ENABLED=true` only after Meta allowlists the app for Page creation.
+- OAuth state validation, authorization-code exchange, token expiry/revocation handling, and a disconnect/revoke action.
+- Meta App Review / Advanced Access where required.
 
-Do not put Page access tokens in a single global variable: each country may map to a different Page and token. Do not enable publishing until OAuth, token encryption, Page selection, App Review requirements, persistent storage, and owner approval have been implemented and tested.
-
-## Official starting points
-
-- Meta developer portal: https://developers.meta.com/
-- Meta Facebook Login: https://developers.facebook.com/docs/facebook-login/
-- Meta Pages API: https://developers.facebook.com/docs/pages-api/
-- Meta Graph API Page videos: https://developers.facebook.com/docs/graph-api/reference/page/videos/
+Do not put Page access tokens in browser localStorage, APK resources, logs, or Git. Do not enable publishing until token persistence, Page selection, permissions, owner approval, and actual Meta API calls have been tested.
 
 ## Current implementation status
 
-The Media Hub UI now displays a flag beside each country and explains the per-country Facebook Page connection flow. This document is the integration specification. OAuth, secure token persistence, Page discovery/selection, and live publishing are not yet implemented or verified.
+- Country flag selector and country-to-Page mapping controls: implemented in the isolated Media Hub code.
+- Meta OAuth callback, encrypted token store adapter, Page discovery, and one-Page-per-country mapping: code added; not live-tested because Meta app credentials and durable storage are not configured.
+- Single-country Page creation adapter and Settings button: code added but deliberately disabled unless Meta allowlists the app and the owner explicitly enables the server flag.
+- Owner approval gate and separate Facebook video publish action: code added; not live-tested without Meta credentials, an authorized Page token, and a completed video file.
+- AI video rendering still depends on configured, cost-approved providers. No real video is claimed as rendered or published yet.
