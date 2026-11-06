@@ -151,7 +151,7 @@ const server = http.createServer(async (req, res) => {
       if (!code) return send(res, 400, { error: "meta_oauth_code_missing" });
       try {
         const pages = await finishMetaLogin(code);
-        return sendHtml(res, "<!doctype html><meta charset=utf-8><title>Facebook connected</title><h2>Facebook connected to Viyzo.</h2><p>" + pages.length + " managed Pages discovered. Return to Viyzo Settings to assign country Pages.</p><script>try{window.opener&&window.opener.postMessage({type:'viyzo-meta-connected'},location.origin)}catch(e){}</script>");
+        return sendHtml(res, "<!doctype html><meta charset=utf-8><title>Facebook connected</title><h2>Facebook connected to Viyzo.</h2><p>" + pages.length + " managed Pages discovered. Return to Viyzo Settings to assign country Pages.</p><a href='/'>Return to Viyzo</a><script>try{if(window.opener){window.opener.postMessage({type:'viyzo-meta-connected'},location.origin);window.close();}}</script>");
       } catch (error) { return send(res, 502, { error: error.message || "meta_connection_failed" }); }
     }
 
