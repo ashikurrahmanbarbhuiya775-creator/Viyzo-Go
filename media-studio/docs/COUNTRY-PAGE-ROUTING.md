@@ -11,3 +11,8 @@ Viyzo Media Hub uses a simple country-based destination model: **one connected F
 - Public publishing remains locked until technical quality checks pass, the owner approves the finished video, and the owner explicitly confirms publishing.
 
 Content guidance: civic/public-information videos must be factual and attributed. Do not fabricate government achievements, imply government sponsorship, impersonate officials, or present opinion as fact. Positive framing is fine when substantiated and clearly distinguished from commentary.
+
+
+## Country-focused audience delivery
+
+Every job also records an audience target matching the selected production country: `audienceTarget.countryCode` and `policy: country_focused`. This is a routing intent for downstream Meta publishing/advertising integrations, not a claim that an organic Facebook post can be confined to that country. Organic distribution is controlled by Meta and may cross borders. If Meta exposes an eligible Page-level country restriction for the specific Page/post type, use that official feature only after owner configuration; otherwise use Meta's permitted location targeting for paid campaigns where available. Never spoof the device/network location, use VPN/proxies to misrepresent origin, or claim guaranteed country-only organic reach. Keep each country Page mapped to the matching country and show a clear warning if audience controls are unavailable.
