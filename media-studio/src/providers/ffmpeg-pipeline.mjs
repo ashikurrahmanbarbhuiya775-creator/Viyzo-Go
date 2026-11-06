@@ -89,7 +89,7 @@ async function firstAvailableFont(candidates) {
 
 async function findThumbnailFonts(headline) {
   const latin = await firstAvailableFont(["/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]);
-  const devanagari = /[\\u0900-\\u097f]/.test(headline)
+  const devanagari = /[\u0900-\u097f]/.test(headline)
     ? await firstAvailableFont(["/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", latin])
     : latin;
   return { brand: latin, headline: devanagari || latin };
