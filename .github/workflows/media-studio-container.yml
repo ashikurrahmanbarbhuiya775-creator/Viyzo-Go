@@ -1,5 +1,9 @@
 name: Media Studio Container Checks
 
+concurrency:
+  group: media-studio-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [media-studio-isolated]
