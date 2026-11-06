@@ -82,10 +82,17 @@ export function formatThumbnailHeadline(value) {
   return lines.join("\n").slice(0, 120);
 }
 
-async function findThumbnailFont() {
-  const candidates = ["/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"];
+async function firstAvailableFont(candidates) {
   for (const candidate of candidates) { try { await stat(candidate); return candidate; } catch {} }
   return null;
+}
+
+async function findThumbnailFonts(headline) {
+  const latin = await firstAvailableFont(["/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]);
+  const devanagari = /[\\u0900-\\u097f]/.test(headline)
+    ? await firstAvailableFont(["/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", latin])
+    : latin;
+  return { brand: latin, headline: devanagari || latin };
 }
 
 export async function autoEditVideo(sourcePath, jobId, options = {}) {
@@ -105,7 +112,7 @@ export async function autoEditVideo(sourcePath, jobId, options = {}) {
     "-movflags", "+faststart", output
   ];
   await run("ffmpeg", args, { timeout: 20 * 60 * 1000, maxBuffer: 4 * 1024 * 1024, windowsHide: true });
-  const thumbnailFont = await findThumbnailFont();
+  const thumbnailFonts = await findThumbnailFonts(headline);
   const titleFile = mediaPath(jobId, "-thumbnail-title.txt");
   const headline = formatThumbnailHeadline(options.thumbnailText || options.title || options.prompt);
   let thumbnailStyle = "clean_video_frame";
@@ -115,7 +122,7 @@ export async function autoEditVideo(sourcePath, jobId, options = {}) {
     "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
     "-q:v", "3", thumbnail
   ], { timeout: 60000, maxBuffer: 1024 * 1024, windowsHide: true });
-  if (thumbnailFont) {
+  if (thumbnailFonts.headline && thumbnailFonts.brand) {
     await writeFile(titleFile, headline, { encoding: "utf8", mode: 0o600 });
     try {
       const filter = "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,drawbox=x=0:y=ih-218:w=iw:h=218:color=black@0.62:t=fill,drawbox=x=58:y=52:w=220:h=66:color=white@0.94:t=fill,drawtext=fontfile=" + thumbnailFont + ":text=VIYZO:fontcolor=black:fontsize=32:x=78:y=68,drawtext=fontfile=" + thumbnailFont + ":textfile=" + titleFile + ":expansion=none:fontcolor=white:fontsize=44:line_spacing=12:x=58:y=h-th-48:fix_bounds=1";
