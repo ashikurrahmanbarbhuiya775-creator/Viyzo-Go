@@ -404,6 +404,8 @@ const server = http.createServer(async (req, res) => {
           thumbnailKey: id + "-thumbnail.jpg",
           editedBytes: result.editedBytes,
           thumbnailBytes: result.thumbnailBytes,
+          thumbnailStyle: result.thumbnailStyle,
+          thumbnailHeadline: result.thumbnailHeadline,
           profile: result.profile,
           status: "ready_for_owner_review"
         };
@@ -440,6 +442,8 @@ const server = http.createServer(async (req, res) => {
           thumbnailKey: id + "-thumbnail.jpg",
           editedBytes: result.editedBytes,
           thumbnailBytes: result.thumbnailBytes,
+          thumbnailStyle: result.thumbnailStyle,
+          thumbnailHeadline: result.thumbnailHeadline,
           profile: result.profile,
           status: "ready_for_owner_review"
         };
