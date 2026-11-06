@@ -47,3 +47,14 @@ test("dashboard inline JavaScript parses and exposes engine actions", async () =
   assert.match(html, /Meta OAuth/);
   assert.match(html, /No fake followers/);
 });
+
+test("country Page mapping and explicit Facebook publishing controls are present", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  assert.match(html, /connectMeta/);
+  assert.match(html, /metaPageList/);
+  assert.match(html, /data-approve-publish/);
+  assert.match(html, /data-publish-facebook/);
+  assert.match(html, /approve-publish/);
+  assert.match(html, /\/publish/);
+  assert.match(html, /countryCode/);
+});
