@@ -14,7 +14,7 @@ import { getTextEngineStatus, generateScriptDraft, generateMetadataDraft } from 
 import { getCountryResearchStatus, researchCountry } from "./src/providers/country-research.mjs";
 import { extensionForMime, inspectVideo, autoEditVideo, qualityCheckVideo, getMediaEngineStatus, MEDIA_LIMITS } from "./src/providers/ffmpeg-pipeline.mjs";
 import { getAvatarEngineStatus, generateAvatarVideo, getAvatarVideoStatus, isTrustedAvatarVideoUrl } from "./src/providers/heygen-avatar.mjs";
-import { getMetaStatus, createMetaLoginUrl, finishMetaLogin, listMetaPages, mapMetaPage } from "./src/providers/meta-pages.mjs";
+import { getMetaStatus, createMetaLoginUrl, finishMetaLogin, listMetaPages, mapMetaPage, publishMetaVideo } from "./src/providers/meta-pages.mjs";
 
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 8787);
@@ -180,7 +180,7 @@ const server = http.createServer(async (req, res) => {
       if (!status.configured) return send(res, 503, { error: "meta_setup_incomplete", status });
       const state = randomUUID() + randomUUID();
       metaOAuthStates.set(state, Date.now() + 10 * 60 * 1000);
-      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "set-cookie": "viyzo_meta_state=" + state + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=600" });
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "set-cookie": "viyzo_meta_state=" + state + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=600" + (process.env.NODE_ENV === "production" ? "; Secure" : "") });
       return res.end(JSON.stringify({ url: createMetaLoginUrl(state) }));
     }
     if (req.method === "GET" && url.pathname === "/api/meta/status") return send(res, 200, getMetaStatus());
@@ -234,6 +234,34 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/meta/pages") return send(res, 200, await listMetaPages());
     if (req.method === "PUT" && url.pathname === "/api/meta/mapping") { const body = await readBody(req); try { return send(res, 200, await mapMetaPage(String(body.countryCode || "").toUpperCase(), body.pageId)); } catch (e) { return send(res, 422, { error: e.message }); } }
+
+
+    const publishMatch = url.pathname.match(/^\\/api\\/jobs\\/([0-9a-f-]{36})\\/publish$/i);
+    if (req.method === "POST" && publishMatch) {
+      const [, id] = publishMatch;
+      const store = await readStore();
+      const index = store.jobs.findIndex(job => job.id === id);
+      if (index < 0) return send(res, 404, { error: "job_not_found" });
+      const job = store.jobs[index];
+      if (!job.ownerApproved || job.publishState !== "ready_for_explicit_publish_action") return send(res, 409, { error: "owner_approval_required" });
+      if (job.qualityReport?.passed !== true || job.processedMedia?.status !== "ready_for_owner_review") return send(res, 409, { error: "passed_quality_check_required" });
+      if (job.publishedVideo?.videoId || job.publishState === "published") return send(res, 409, { error: "already_published" });
+      const mediaKey = job.processedMedia.editedKey;
+      if (mediaKey !== id + "-edited.mp4") return send(res, 409, { error: "edited_video_file_missing" });
+      const result = await publishMetaVideo({
+        countryCode: job.countryCode,
+        videoPath: resolve(MEDIA_DIR, mediaKey),
+        title: job.metadataDraft?.title || job.scriptDraft?.title || job.prompt,
+        description: job.metadataDraft?.description || job.prompt
+      });
+      if (!result.ok) return send(res, result.error === "meta_not_connected" ? 503 : result.error === "country_page_not_mapped" ? 409 : 502, { error: result.error, providerCode: result.providerCode || null });
+      job.publishedVideo = { provider: "meta", pageId: result.pageId, pageName: result.pageName, videoId: result.videoId, postId: result.postId, publishedAt: new Date().toISOString() };
+      job.publishState = "published";
+      job.targetPage = { countryCode: job.countryCode, pageId: result.pageId, pageName: result.pageName, status: "published" };
+      job.updatedAt = job.publishedVideo.publishedAt;
+      await saveStore(store);
+      return send(res, 200, { job, message: "Video published to the authorized Facebook Page." });
+    }
 
     if (req.method === "GET" && url.pathname === "/api/jobs") {
       const store = await readStore();
