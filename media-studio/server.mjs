@@ -286,7 +286,7 @@ const server = http.createServer(async (req, res) => {
           countryCode: job.countryCode,
           videoPath: resolve(MEDIA_DIR, mediaKey),
           title: job.metadataDraft?.title || job.scriptDraft?.title || job.prompt,
-          description: job.metadataDraft?.description || job.prompt
+          description: [job.metadataDraft?.description || job.prompt, ...(Array.isArray(job.metadataDraft?.hashtags) ? job.metadataDraft.hashtags : [])].filter(Boolean).join("\n\n")
         });
         if (!result.ok) {
           job.publishState = ["meta_publish_timeout", "meta_publish_unavailable"].includes(result.error) ? "publish_outcome_unknown" : "ready_for_explicit_publish_action";
