@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import { readFile, writeFile, mkdir, rename, chmod } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rename, chmod, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 const GRAPH_VERSION = process.env.META_GRAPH_API_VERSION || "v26.0";
@@ -16,8 +16,8 @@ export function getMetaStatus() {
     configured: missing.length === 0 && !!encryptionKey(),
     missing: missing.filter(k => k !== "META_TOKEN_ENCRYPTION_KEY" || !encryptionKey()),
     graphVersion: GRAPH_VERSION,
-    capabilities: { facebookLogin: true, managedPageDiscovery: true, countryPageMapping: true, automaticPageCreation: false, videoPublishing: false },
-    note: "Meta app credentials, encrypted persistent storage and Meta review are required. Meta does not provide a general API for automatically creating unlimited Pages for a personal profile."
+    capabilities: { facebookLogin: true, managedPageDiscovery: true, countryPageMapping: true, videoPublishing: true, automaticPageCreation: false },
+    note: "Meta app credentials, encrypted durable token storage, Page permissions and Meta review are required. Page creation through API requires Meta allowlisting."
   };
 }
 export function createMetaLoginUrl(state) {
@@ -84,4 +84,31 @@ export async function mapMetaPage(countryCode, pageId) {
   store.mappings = { ...(store.mappings || {}), [countryCode]: page.id };
   await writeEncrypted(store);
   return { countryCode, page: { id: page.id, name: page.name } };
+}
+export async function publishMetaVideo({ countryCode, videoPath, title, description }) {
+  const store = await readEncrypted();
+  if (!store.userToken) return { ok: false, error: "meta_not_connected" };
+  const pageId = store.mappings?.[countryCode];
+  const page = store.pages.find(p => p.id === pageId);
+  if (!page) return { ok: false, error: "country_page_not_mapped" };
+  if (!page.tasks.includes("CREATE_CONTENT") || !page.accessToken) return { ok: false, error: "page_missing_create_content_task" };
+  const info = await stat(videoPath).catch(() => null);
+  if (!info?.isFile()) return { ok: false, error: "edited_video_file_missing" };
+  if (info.size > 256 * 1024 * 1024) return { ok: false, error: "video_exceeds_direct_upload_limit" };
+  const bytes = await readFile(videoPath);
+  const form = new FormData();
+  form.set("access_token", page.accessToken);
+  form.set("title", String(title || "Viyzo video").slice(0, 255));
+  form.set("description", String(description || "").slice(0, 5000));
+  form.set("source", new Blob([bytes], { type: "video/mp4" }), "viyzo-video.mp4");
+  try {
+    const response = await fetch("https://graph-video.facebook.com/" + GRAPH_VERSION + "/" + encodeURIComponent(page.id) + "/videos", {
+      method: "POST", body: form, signal: AbortSignal.timeout(120000)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.error) return { ok: false, error: "meta_publish_failed", providerCode: result.error?.code || response.status };
+    return { ok: true, pageId: page.id, pageName: page.name, videoId: String(result.id || ""), postId: result.post_id ? String(result.post_id) : null };
+  } catch (error) {
+    return { ok: false, error: error.name === "AbortError" ? "meta_publish_timeout" : "meta_publish_unavailable" };
+  }
 }
