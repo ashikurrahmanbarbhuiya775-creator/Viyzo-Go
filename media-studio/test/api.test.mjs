@@ -58,6 +58,9 @@ test("local API protects owner routes and creates validated jobs", async () => {
     assert.equal(metaStatusData.configured, false, "Meta must remain blocked until server credentials and durable storage exist");
     const metaLoginMissing = await fetch(base + "/api/meta/login-url", { method: "POST", headers, body: "{}" });
     assert.equal(metaLoginMissing.status, 503, "Facebook login must not pretend to work without Meta app setup");
+    const createPageDisabled = await fetch(base + "/api/meta/pages/create-country", { method: "POST", headers, body: JSON.stringify({ countryCode: "IN", countryName: "India" }) });
+    assert.equal(createPageDisabled.status, 409, "Page creation must remain blocked until Meta allowlists the app");
+    assert.equal((await createPageDisabled.json()).error, "meta_page_creation_not_enabled");
     const metaPages = await fetch(base + "/api/meta/pages", { headers });
     assert.equal(metaPages.status, 200);
     assert.equal((await metaPages.json()).connected, false);
