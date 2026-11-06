@@ -14,7 +14,7 @@ import { getTextEngineStatus, generateScriptDraft, generateMetadataDraft } from 
 import { getCountryResearchStatus, researchCountry } from "./src/providers/country-research.mjs";
 import { extensionForMime, inspectVideo, autoEditVideo, qualityCheckVideo, getMediaEngineStatus, MEDIA_LIMITS } from "./src/providers/ffmpeg-pipeline.mjs";
 import { getAvatarEngineStatus, generateAvatarVideo, getAvatarVideoStatus, isTrustedAvatarVideoUrl } from "./src/providers/heygen-avatar.mjs";
-import { getMetaStatus, createMetaLoginUrl, finishMetaLogin, listMetaPages, mapMetaPage, publishMetaVideo } from "./src/providers/meta-pages.mjs";
+import { getMetaStatus, createMetaLoginUrl, finishMetaLogin, listMetaPages, mapMetaPage, publishMetaVideo, createMetaCountryPage } from "./src/providers/meta-pages.mjs";
 
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 8787);
@@ -232,6 +232,12 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, buildGrowthRecommendations(metrics));
     }
 
+    if (req.method === "POST" && url.pathname === "/api/meta/pages/create-country") {
+      const body = await readBody(req);
+      const result = await createMetaCountryPage({ countryCode: String(body.countryCode || "").toUpperCase(), countryName: String(body.countryName || "") });
+      if (!result.ok) return send(res, result.error === "meta_page_creation_not_enabled" ? 409 : result.error === "meta_not_connected" ? 503 : 422, result);
+      return send(res, 201, result);
+    }
     if (req.method === "GET" && url.pathname === "/api/meta/pages") return send(res, 200, await listMetaPages());
     if (req.method === "PUT" && url.pathname === "/api/meta/mapping") { const body = await readBody(req); try { return send(res, 200, await mapMetaPage(String(body.countryCode || "").toUpperCase(), body.pageId)); } catch (e) { return send(res, 422, { error: e.message }); } }
 
