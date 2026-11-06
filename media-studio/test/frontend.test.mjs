@@ -54,6 +54,8 @@ test("country Page mapping and explicit Facebook publishing controls are present
   assert.match(html, /metaPageList/);
   assert.match(html, /data-approve-publish/);
   assert.match(html, /data-publish-facebook/);
+  assert.match(html, /createCountryPage/);
+  assert.match(html, /create-country/);
   assert.match(html, /approve-publish/);
   assert.match(html, /\/publish/);
   assert.match(html, /countryCode/);
