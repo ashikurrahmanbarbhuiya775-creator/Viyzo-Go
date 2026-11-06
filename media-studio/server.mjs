@@ -174,6 +174,15 @@ const server = http.createServer(async (req, res) => {
       return res.end();
     }
 
+
+    if (req.method === "POST" && url.pathname === "/api/meta/login-url") {
+      const status = getMetaStatus();
+      if (!status.configured) return send(res, 503, { error: "meta_setup_incomplete", status });
+      const state = randomUUID() + randomUUID();
+      metaOAuthStates.set(state, Date.now() + 10 * 60 * 1000);
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "set-cookie": "viyzo_meta_state=" + state + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=600" });
+      return res.end(JSON.stringify({ url: createMetaLoginUrl(state) }));
+    }
     if (req.method === "GET" && url.pathname === "/api/meta/status") return send(res, 200, getMetaStatus());
     if (req.method === "GET" && url.pathname === "/api/system-status") {
       let storageWritable = false;
