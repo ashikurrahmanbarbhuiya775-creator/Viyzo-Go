@@ -66,7 +66,7 @@ export async function inspectVideo(filePath) {
 }
 
 export function formatThumbnailHeadline(value) {
-  const cleaned = String(value || "").replace(/[\\u0000-\\u001f\\u007f]/g, " ").replace(/\\s+/g, " ").trim().slice(0, 120);
+  const cleaned = String(value || "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
   if (!cleaned) return "VIYZO VIDEO";
   const words = cleaned.split(" ");
   const lines = [];
@@ -79,7 +79,7 @@ export function formatThumbnailHeadline(value) {
     } else line = candidate;
   }
   if (lines.length < 3 && line) lines.push(line);
-  return lines.join("\\n").slice(0, 120);
+  return lines.join("\n").slice(0, 120);
 }
 
 async function findThumbnailFont() {
