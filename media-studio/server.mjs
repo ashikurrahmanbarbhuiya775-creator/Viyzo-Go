@@ -124,7 +124,7 @@ const server = http.createServer(async (req, res) => {
       return sendHtml(res, await readFile(resolve("index.html"), "utf8"));
     }
     if (req.method === "GET" && url.pathname === "/health") {
-      return send(res, 200, { ok: true, service: "viyzo-media-studio-api", mode: "local-demo" });
+      return send(res, 200, { ok: true, service: "viyzo-media-studio-api", mode: "api-live", environment: process.env.RAILWAY_ENVIRONMENT_NAME || process.env.NODE_ENV || "unknown" });
     }
     if (req.method === "POST" && url.pathname === "/auth/login") {
       if (req.headers.origin && req.headers.origin !== url.origin) return send(res, 403, { error: "origin_not_allowed" });
