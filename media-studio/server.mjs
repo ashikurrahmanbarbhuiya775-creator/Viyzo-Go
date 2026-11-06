@@ -223,7 +223,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/engines") {
       return send(res, 200, {
         engines: [getTextEngineStatus(), getCountryResearchStatus(), await getMediaEngineStatus()],
-        otherEngines: [getAvatarEngineStatus(), ...["voice", "video_render"].map(id => ({ id, status: "not_configured" })), { id: "publishing", status: getMetaStatus().configured ? "ready_for_facebook_connection" : "not_configured", note: "Meta Pages API · owner approval required" }],
+        otherEngines: (() => { const avatar = getAvatarEngineStatus(); const media = getMediaEngineStatus(); return [avatar, { id: "voice", name: "HeyGen narration and natural voice", status: avatar.configured ? avatar.paidCallsEnabled ? "configured_not_health_checked" : "configured_but_cost_locked" : "not_configured", provider: "heygen", requires: ["HEYGEN_API_KEY", "HEYGEN_AVATAR_ID"] }, { id: "video_render", name: "HeyGen presenter render + FFmpeg post-production", status: avatar.configured && media.configured ? avatar.paidCallsEnabled ? "configured_not_health_checked" : "configured_but_cost_locked" : "not_configured", presenter: avatar.status, postProduction: media.status, requires: ["HEYGEN_API_KEY", "HEYGEN_AVATAR_ID", "FFmpeg", "ffprobe"] }, { id: "publishing", status: getMetaStatus().configured ? "ready_for_facebook_connection" : "not_configured", note: "Meta Pages API · owner approval required" }]; })(),
         resourcePolicy: getResourcePolicy()
       });
     }
