@@ -10,6 +10,7 @@ test("creates a valid draft job with exactly one country-scoped Page destination
   assert.equal(result.job.status, "draft");
   assert.equal(result.job.publishState, "locked");
   assert.deepEqual(result.job.targetPage, { countryCode: "JP", status: "not_connected", policy: "one_page_per_country" });
+  assert.deepEqual(result.job.audienceTarget, { countryCode: "JP", policy: "country_focused", enforcement: "platform_dependent" });
   assert.equal("targetPageNumber" in result.job, false);
 });
 
