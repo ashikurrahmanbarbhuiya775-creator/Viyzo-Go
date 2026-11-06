@@ -85,6 +85,7 @@ export async function generateScriptDraft(job, env = process.env) {
 export async function generateMetadataDraft(job, env = process.env) {
   const status = getTextEngineStatus(env);
   if (!status.configured) return { ok: false, error: "text_engine_not_configured" };
+  if (!isPaidAiAllowed(env)) return { ok: false, error: "paid_ai_cost_guard_blocked" };
   const base = (env.OPENAI_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
   const endpoint = base.endsWith("/chat/completions") ? base : base + "/chat/completions";
   const controller = new AbortController();
