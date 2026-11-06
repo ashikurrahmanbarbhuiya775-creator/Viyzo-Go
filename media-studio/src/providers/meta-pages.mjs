@@ -66,8 +66,17 @@ export async function finishMetaLogin(code) {
   if (!getMetaStatus().configured) throw new Error("meta_setup_incomplete");
   const short = await graph("/oauth/access_token", { client_id: process.env.META_APP_ID, client_secret: process.env.META_APP_SECRET, redirect_uri: process.env.META_OAUTH_REDIRECT_URI, code });
   const long = await graph("/oauth/access_token", { grant_type: "fb_exchange_token", client_id: process.env.META_APP_ID, client_secret: process.env.META_APP_SECRET, fb_exchange_token: short.access_token });
-  const pages = await graph("/me/accounts", { fields: "id,name,tasks,access_token", limit: 100, access_token: long.access_token });
-  const safePages = (pages.data || []).map(p => ({ id: String(p.id), name: String(p.name || ""), tasks: Array.isArray(p.tasks) ? p.tasks : [], accessToken: String(p.access_token || "") }));
+  let pageData = await graph("/me/accounts", { fields: "id,name,tasks,access_token", limit: 100, access_token: long.access_token });
+  const allPages = [...(pageData.data || [])];
+  for (let page = 0; page < 4 && pageData.paging?.next; page++) {
+    const next = new URL(pageData.paging.next);
+    if (next.hostname !== "graph.facebook.com" || next.protocol !== "https:") throw new Error("meta_pagination_url_invalid");
+    const response = await fetch(next, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15000) });
+    pageData = await response.json().catch(() => ({}));
+    if (!response.ok || pageData.error) throw new Error("meta_api_" + (pageData.error?.code || response.status));
+    allPages.push(...(pageData.data || []));
+  }
+  const safePages = allPages.map(p => ({ id: String(p.id), name: String(p.name || ""), tasks: Array.isArray(p.tasks) ? p.tasks : [], accessToken: String(p.access_token || "") }));
   await writeEncrypted({ userToken: long.access_token, pages: safePages, mappings: {}, connectedAt: new Date().toISOString() });
   return safePages.map(({ id, name, tasks }) => ({ id, name, tasks }));
 }
@@ -81,6 +90,7 @@ export async function mapMetaPage(countryCode, pageId) {
   const page = store.pages.find(p => p.id === String(pageId));
   if (!page) throw new Error("page_not_authorized");
   if (!page.tasks.includes("CREATE_CONTENT")) throw new Error("page_missing_create_content_task");
+  if (Object.entries(store.mappings || {}).some(([code, mappedId]) => code !== countryCode && mappedId === page.id)) throw new Error("page_already_assigned_to_another_country");
   store.mappings = { ...(store.mappings || {}), [countryCode]: page.id };
   await writeEncrypted(store);
   return { countryCode, page: { id: page.id, name: page.name } };
@@ -106,8 +116,8 @@ export async function publishMetaVideo({ countryCode, videoPath, title, descript
       method: "POST", body: form, signal: AbortSignal.timeout(120000)
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok || result.error) return { ok: false, error: "meta_publish_failed", providerCode: result.error?.code || response.status };
-    return { ok: true, pageId: page.id, pageName: page.name, videoId: String(result.id || ""), postId: result.post_id ? String(result.post_id) : null };
+    if (!response.ok || result.error || !result.id) return { ok: false, error: "meta_publish_failed", providerCode: result.error?.code || response.status };
+    return { ok: true, pageId: page.id, pageName: page.name, videoId: String(result.id), postId: result.post_id ? String(result.post_id) : null };
   } catch (error) {
     return { ok: false, error: error.name === "AbortError" ? "meta_publish_timeout" : "meta_publish_unavailable" };
   }
